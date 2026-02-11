@@ -1,1 +1,2 @@
-A toy project of building truly async file IO using io_uring
+A toy project of building truly async file IO using io_uring.
+
