@@ -1,5 +1,5 @@
 def main():
-    print("Hello from aioring!")
+    print("Hello from one-ring-asyncio!")
 
 
 if __name__ == "__main__":

@@ -1,9 +1,7 @@
 [project]
-name = "aioring"
+name = "one-ring-asyncio"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = [
-    "liburing>=2024.5.3",
-]
+dependencies = []
