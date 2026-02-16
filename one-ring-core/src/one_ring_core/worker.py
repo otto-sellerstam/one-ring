@@ -1,22 +1,14 @@
-"""It should be a single class that can:
-
-register(op_type: OpType) -> identifiers associated with the operations?
-submit() -> success
-peek() -> gets all completed operations
-wait() -> blocks while waiting for the next completed operation(s)
-
-The event loop will need a way to map its requsts to the responses provided by the IO
-worker. Maybe the even loop should be resonsible for providing an integer ID for mapping,
-used as user_data internally?
-"""
+"""This will be a docstring."""
 
 from __future__ import annotations
 
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from types import TracebackType
-from typing import Self
+from typing import TYPE_CHECKING, Self, override
+
+if TYPE_CHECKING:
+    from types import TracebackType
 
 from liburing import (
     AT_FDCWD,
@@ -44,40 +36,52 @@ from liburing import (
 
 
 class SubmissionQueueEntry:
-    def __init__(self, sqe, user_data: UserData):
+    """Docstring."""
+
+    def __init__(self, sqe, user_data: UserData) -> None:
         self._sqe = sqe
         self.user_data: UserData = user_data
         io_uring_sqe_set_data64(self._sqe, user_data)
 
     def prep_openat(self, path: bytes, flags: int, mode: int, dir_fd: int) -> None:
+        """Docstring."""
         io_uring_prep_openat(self._sqe, path, flags, mode, dir_fd)
 
     def prep_read(self, fd: int, iov: MutableIOVec, offset: int) -> None:
+        """Docstring."""
         io_uring_prep_read(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_write(self, fd: int, iov: IOVec, offset: int) -> None:
+        """Docstring."""
         io_uring_prep_write(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_close(self, fd: int) -> None:
+        """Docstring."""
         io_uring_prep_close(self._sqe, fd)
 
 
 class IOVec:
+    """Docstring."""
+
     def __init__(self, data: bytes) -> None:
         self._iov = iovec(data)
 
     @property
     def iov_base(self) -> bytes:
+        """Docstring."""
         return self._iov.iov_base
 
     @property
     def iov_len(self) -> int:
+        """Docstring."""
         return self._iov.iov_len
 
 
 class MutableIOVec(IOVec):
+    """Docstring."""
+
     def __init__(self, data: bytearray) -> None:
-        self._iov = iovec(data)
+        self._iov = iovec(data)  # pyrefly: ignore
 
 
 ### Operation request types
@@ -85,55 +89,60 @@ class MutableIOVec(IOVec):
 
 @dataclass
 class IOOperation:
-    """Base class for all IO operations"""
+    """Base class for all IO operations."""
 
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
-        """Prepares a submission queue entry for the SQ"""
+        """Prepares a submission queue entry for the SQ."""
         raise NotImplementedError("Operations should implement prepare method")
 
     def extract(self, cqe) -> IOResult:
-        """Extract fields from a completion queue event and wrap in correct type"""
+        """Extract fields from a completion queue event and wrap in correct type."""
         raise NotImplementedError("Operations should implement prepare method")
 
 
 @dataclass
 class FileIO(IOOperation):
-    """Base class for all file IO operations"""
+    """Base class for all file IO operations."""
 
 
 @dataclass
 class NetworkIO(IOOperation):
-    """Base class for all networking IO operations"""
+    """Base class for all networking IO operations."""
 
 
 @dataclass
 class TimerIO(IOOperation):
-    """Base class for all timer IO operations"""
+    """Base class for all timer IO operations."""
 
 
 @dataclass
 class ControlIO(IOOperation):
-    """Base class for all control IO operations"""
+    """Base class for all control IO operations."""
 
 
 @dataclass
 class FileOpen(FileIO):
+    """Docstring."""
+
     path: bytes
     mode: str
 
+    @override
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
-        """Prepares a submission queue entry for the SQ"""
+        """Prepares a submission queue entry for the SQ."""
         sqe.prep_openat(self.path, self._mode_to_flags(self.mode), 0o660, AT_FDCWD)
         return sqe.user_data
 
+    @override
     def extract(self, cqe) -> IOResult:
-        """Extract fields from a completion queue event and wrap in correct type"""
+        """Extract fields from a completion queue event and wrap in correct type."""
         return FileOpenResult(
             fd=cqe.res,
         )
 
     @staticmethod
     def _mode_to_flags(mode: str) -> int:
+        """Docstring."""
         if "r" in mode and "w" in mode:
             flags = O_RDWR
         elif "w" in mode:
@@ -151,7 +160,7 @@ class FileOpen(FileIO):
 
 @dataclass
 class FileRead(FileIO):
-    """File descriptor for the regular file"""
+    """File descriptor for the regular file."""
 
     fd: int
 
@@ -163,8 +172,9 @@ class FileRead(FileIO):
 
     _vector_buffer: MutableIOVec = field(init=False)
 
+    @override
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
-        """Prepares a submission queue entry for the SQ"""
+        """Prepares a submission queue entry for the SQ."""
         _size = self.size
         if _size is None:
             _size = os.fstat(self.fd).st_size  # Blocking syscall.
@@ -173,8 +183,9 @@ class FileRead(FileIO):
         sqe.prep_read(self.fd, self._vector_buffer, self.offset)
         return sqe.user_data
 
+    @override
     def extract(self, cqe) -> IOResult:
-        """Extract fields from a completion queue event and wrap in correct type"""
+        """Extract fields from a completion queue event and wrap in correct type."""
         return FileReadResult(
             content=self._vector_buffer.iov_base.decode(),
             size=cqe.res,
@@ -183,7 +194,7 @@ class FileRead(FileIO):
 
 @dataclass
 class FileWrite(FileIO):
-    """File descriptor for the regular file"""
+    """File descriptor for the regular file."""
 
     fd: int
 
@@ -193,14 +204,16 @@ class FileWrite(FileIO):
     """Not sure"""
     offset: int = 0
 
+    @override
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
-        """Prepares a submission queue entry for the SQ"""
+        """Prepares a submission queue entry for the SQ."""
         vector_buffer = IOVec(self.data)
         sqe.prep_write(self.fd, vector_buffer, self.offset)
         return sqe.user_data
 
+    @override
     def extract(self, cqe) -> IOResult:
-        """Extract fields from a completion queue event and wrap in correct type"""
+        """Extract fields from a completion queue event and wrap in correct type."""
         return FileWriteResult(
             size=cqe.res,
         )
@@ -208,17 +221,19 @@ class FileWrite(FileIO):
 
 @dataclass
 class FileClose(FileIO):
-    """File descriptor for the regular file"""
+    """File descriptor for the regular file."""
 
     fd: int
 
+    @override
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
-        """Prepares a submission queue entry for the SQ"""
+        """Prepares a submission queue entry for the SQ."""
         sqe.prep_close(self.fd)
         return sqe.user_data
 
+    @override
     def extract(self, cqe) -> IOResult:
-        """Extract fields from a completion queue event and wrap in correct type"""
+        """Extract fields from a completion queue event and wrap in correct type."""
         return FileCloseResult()
 
 
@@ -227,45 +242,47 @@ class FileClose(FileIO):
 
 @dataclass
 class IOCompletion:
+    """Docstring."""
+
     user_data: UserData
     result: IOResult
 
 
 @dataclass
 class IOResult:
-    """Base class for all IO operation results"""
+    """Base class for all IO operation results."""
 
 
 @dataclass
 class FileIOResult(IOResult):
-    """Base class for all file IO operation results"""
+    """Base class for all file IO operation results."""
 
 
 @dataclass
 class NetworkIOResult(IOResult):
-    """Base class for all networking IO operation results"""
+    """Base class for all networking IO operation results."""
 
 
 @dataclass
 class TimerIOResult(IOResult):
-    """Base class for all timer IO operation results"""
+    """Base class for all timer IO operation results."""
 
 
 @dataclass
 class ControlIOResult(IOResult):
-    """Base class for all control IO operation results"""
+    """Base class for all control IO operation results."""
 
 
 @dataclass
 class FileOpenResult(IOResult):
-    """Result of a file open operation"""
+    """Result of a file open operation."""
 
     fd: int
 
 
 @dataclass
 class FileReadResult(IOResult):
-    """Result of a file read operation"""
+    """Result of a file read operation."""
 
     content: str
     size: int
@@ -273,14 +290,14 @@ class FileReadResult(IOResult):
 
 @dataclass
 class FileWriteResult(IOResult):
-    """Result of a file write operation"""
+    """Result of a file write operation."""
 
     size: int
 
 
 @dataclass
 class FileCloseResult(IOResult):
-    """Result of a file close operation"""
+    """Result of a file close operation."""
 
 
 type UserData = int
@@ -288,18 +305,21 @@ type UserData = int
 
 @dataclass
 class CompletionEvent:
+    """Docstring."""
+
     user_data: UserData
     res: int
     flags: int
 
 
 class Ring:
-    def __init__(self, depth: int = 32):
+    def __init__(self, depth: int = 32) -> None:
         self._ring = io_uring()
         self._cqe = io_uring_cqe()
         self._depth = depth
 
     def __enter__(self) -> Self:
+        """Docstring."""
         io_uring_queue_init(self._depth, self._ring, 0)
         return self
 
@@ -309,19 +329,22 @@ class Ring:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        """Docstring."""
         io_uring_queue_exit(self._ring)
 
     def submit(self) -> int:
-        """Submits the SQ to the kernel"""
+        """Submits the SQ to the kernel."""
         # This should check that all new registrations where actually submitted
         return io_uring_submit(self._ring)
 
     def peek(self) -> CompletionEvent | None:
+        """Docstring."""
         if io_uring_peek_cqe(self._ring, self._cqe) == 0:
             return self._consume_cqe()
         return None
 
     def wait(self) -> CompletionEvent:
+        """Docstring."""
         io_uring_wait_cqe(self._ring, self._cqe)
         return self._consume_cqe()
 
@@ -335,7 +358,7 @@ class Ring:
         return event
 
     def get_sqe(self, user_data: int) -> SubmissionQueueEntry:
-        """Returns a SQE from the SQ, with set user_data"""
+        """Returns a SQE from the SQ, with set user_data."""
         if not user_data:
             raise ValueError("user_data cannot be 0")
 
@@ -347,7 +370,9 @@ class Ring:
 
 
 class IOWorker:
-    def __init__(self):
+    """Docstring."""
+
+    def __init__(self) -> None:
         self._ring = Ring()
 
         # Maps user_data (internal) to respective operation.
@@ -357,7 +382,7 @@ class IOWorker:
         self._iovecs: dict[UserData, MutableIOVec] = {}
 
     def register(self, operation: IOOperation) -> UserData:
-        """Registers operation in the SQ"""
+        """Registers operation in the SQ."""
         user_data = operation.prep(self._get_sqe())
 
         self._add_submission(user_data, operation)
@@ -381,7 +406,7 @@ class IOWorker:
         self._active_submissions[user_data] = operation
 
     def _pop_submission(self, user_data: UserData) -> IOOperation:
-        """Pops and returns a submission from the internal tracking of active submissions.
+        """Pops a submission from the internal tracking of active submissions.
 
         Args:
             user_data: the submission to pop.
@@ -392,13 +417,13 @@ class IOWorker:
         return self._active_submissions.pop(user_data)
 
     def submit(self) -> None:
-        """Submits the SQ to the kernel"""
+        """Submits the SQ to the kernel."""
         # This should check that all new registrations where actually submitted
         number_submitted = self._ring.submit()
         print(f"Submitted {number_submitted} SQEs")
 
     def wait(self) -> IOCompletion:
-        """Blocking check if a completion event is available
+        """Blocking check if a completion event is available.
 
         Returns:
             IOCompletion
@@ -407,7 +432,7 @@ class IOWorker:
         return self._extract_cqe()
 
     def peek(self) -> IOCompletion | None:
-        """Nonblocking check if a completion event is available
+        """Nonblocking check if a completion event is available.
 
         Returns:
             IOCompletion if available, otherwise None.
@@ -418,6 +443,7 @@ class IOWorker:
         return None
 
     def __enter__(self) -> Self:
+        """Docstring."""
         self._stack = ExitStack()
         self._stack.__enter__()
         self._ring = self._stack.enter_context(Ring(depth=32))
@@ -429,6 +455,7 @@ class IOWorker:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        """Docstring."""
         self._stack.__exit__(exc_type, exc_val, exc_tb)
 
     def _extract_cqe(self) -> IOCompletion:
@@ -451,7 +478,8 @@ class IOWorker:
         return self._ring.get_sqe(user_data)
 
 
-def main():
+def main() -> None:
+    """Docstring."""
     with IOWorker() as worker:
         worker.register(FileOpen(b"./testing/hello.txt", "rwa"))
         worker.register(FileOpen(b"./testing/world.txt", "rwa"))
