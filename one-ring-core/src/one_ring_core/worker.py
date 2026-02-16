@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Self, override
 if TYPE_CHECKING:
     from types import TracebackType
 
-from liburing import (
+from liburing import (  # Automatically set to typing.Any by config.
     AT_FDCWD,
     O_APPEND,
     O_CREAT,
@@ -60,11 +60,10 @@ class SubmissionQueueEntry:
         io_uring_prep_close(self._sqe, fd)
 
 
-class IOVec:
+class BaseIOVec:
     """Docstring."""
 
-    def __init__(self, data: bytes) -> None:
-        self._iov = iovec(data)
+    _iov: iovec
 
     @property
     def iov_base(self) -> bytes:
@@ -77,7 +76,14 @@ class IOVec:
         return self._iov.iov_len
 
 
-class MutableIOVec(IOVec):
+class IOVec(BaseIOVec):
+    """Docstring."""
+
+    def __init__(self, data: bytes) -> None:
+        self._iov = iovec(data)
+
+
+class MutableIOVec(BaseIOVec):
     """Docstring."""
 
     def __init__(self, data: bytearray) -> None:

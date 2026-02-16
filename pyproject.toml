@@ -105,6 +105,7 @@ known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio"]
 [tool.pyrefly]
 project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py"]
 search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src"]
+replace-imports-with-any = ["liburing"]
 
 [tool.pyrefly.errors]
 unannotated-return = true
