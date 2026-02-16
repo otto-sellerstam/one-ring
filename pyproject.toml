@@ -10,6 +10,9 @@ license = { text = "MIT" }
 authors = [
     { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
 ]
+dependencies = [
+    "liburing",
+]
 [tool.uv.workspace]
 members = [
     "one-ring-core",
@@ -21,6 +24,7 @@ members = [
 one-ring-core = { workspace = true }
 one-ring-loop = { workspace = true }
 one-ring-asyncio = { workspace = true }
+liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
 
 # ── Development dependencies ────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from one_ring_core.types import UserData
+    from one_ring_core.typedefs import UserData
 
 
 @dataclass(frozen=True)
