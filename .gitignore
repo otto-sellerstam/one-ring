@@ -1,13 +1,36 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
-build/
+*.py[cod]
+*.egg-info/
 dist/
-wheels/
-*.egg-info
+build/
 
 # Virtual environments
-.venv
+.venv/
 
-# Personal stuff
-testing/
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Tools
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Docs
+site/
+
+# Secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,20 @@
+# List available recipes
+default:
+    @just --list
+
+pkg := "one_ring_asyncio"
+
+# Run tests for this package
+test:
+    uv run pytest tests/
+
+# Run tests with coverage
+test-cov:
+    uv run pytest tests/ --cov={{pkg}} --cov-report=term-missing
+
+# Run type checker for this package
+typecheck:
+    uv run pyrefly check src/ tests/
+
+# Run all checks for this package
+check: typecheck test

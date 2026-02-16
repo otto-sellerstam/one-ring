@@ -1,178 +1,26 @@
 [project]
 name = "one-ring-core"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = ""
 requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
+]
 dependencies = [
-    "liburing",
+    "structlog>=24.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
-    "ruff>=0.11",
-    "pyrefly>=0.15",
-    "pytest>=8.0",
-]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.uv.sources]
-liburing = { git = "https://github.com/YoSTEALTH/Liburing" }
+[tool.hatch.build.targets.wheel]
+packages = ["src/one_ring_core"]
 
-# =============================================================================
-# Ruff - Linter & Formatter
-# =============================================================================
+# ── Coverage (per-package source) ───────────────────────────────────────
+# Other coverage settings (fail_under, exclude_lines) are in root pyproject.toml.
 
-[tool.ruff]
-target-version = "py312"
-line-length = 88
-
-[tool.ruff.lint]
-# Start strict: enable almost everything, then carve out exceptions.
-# See all rules: https://docs.astral.sh/ruff/rules/
-select = [
-    "F",      # pyflakes
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "I",      # isort
-    "N",      # pep8-naming
-    "UP",     # pyupgrade
-    "ANN",    # flake8-annotations
-    "ASYNC",  # flake8-async
-    "S",      # flake8-bandit (security)
-    "BLE",    # flake8-blind-except
-    "FBT",    # flake8-boolean-trap
-    "B",      # flake8-bugbear
-    "A",      # flake8-builtins
-    "COM",    # flake8-commas
-    "C4",     # flake8-comprehensions
-    "DTZ",    # flake8-datetimez
-    "T10",    # flake8-debugger
-    "EM",     # flake8-errmsg
-    "FA",     # flake8-future-annotations
-    "ISC",    # flake8-implicit-str-concat
-    "ICN",    # flake8-import-conventions
-    "LOG",    # flake8-logging
-    "G",      # flake8-logging-format
-    "INP",    # flake8-no-pep420
-    "PIE",    # flake8-pie
-    "T20",    # flake8-print
-    "PYI",    # flake8-pyi
-    "PT",     # flake8-pytest-style
-    "Q",      # flake8-quotes
-    "RSE",    # flake8-raise
-    "RET",    # flake8-return
-    "SLF",    # flake8-self
-    "SLOT",   # flake8-slots
-    "SIM",    # flake8-simplify
-    "TID",    # flake8-tidy-imports
-    "TCH",    # flake8-type-checking
-    "INT",    # flake8-gettext
-    "ARG",    # flake8-unused-arguments
-    "PTH",    # flake8-use-pathlib
-    "TD",     # flake8-todos
-    "FIX",    # flake8-fixme
-    "ERA",    # eradicate (commented-out code)
-    "PD",     # pandas-vet
-    "PGH",    # pygrep-hooks
-    "PL",     # pylint (all: PLC, PLE, PLR, PLW)
-    "TRY",    # tryceratops
-    "FLY",    # flynt
-    "NPY",    # numpy-specific
-    "PERF",   # perflint
-    "FURB",   # refurb
-    "RUF",    # ruff-specific rules
-]
-
-ignore = [
-    # --- Conflicts with ruff formatter ---
-    "COM812",   # missing-trailing-comma (conflicts with formatter)
-    "ISC001",   # single-line-implicit-string-concatenation (conflicts with formatter)
-
-    # --- Annotation noise for strict-but-practical usage ---
-    "ANN101",   # missing-type-self (deprecated)
-    "ANN102",   # missing-type-cls (deprecated)
-    "ANN401",   # dynamically-typed-expressions (Any) - sometimes necessary
-
-    # --- Too noisy / opinionated ---
-    "TD003",    # missing-todo-link - not every TODO needs an issue
-    "FIX002",   # line-contains-todo - we use TODOs intentionally
-    "TRY003",   # raise-vanilla-args - overly strict on exception messages
-    "EM101",    # raw-string-in-exception - string literals in exceptions are fine
-    "EM102",    # f-string-in-exception - f-strings in exceptions are fine
-
-    # --- Pylint noise ---
-    "PLR0913",  # too-many-arguments - not always avoidable
-    "PLR2004",  # magic-value-comparison - too many false positives
-]
-
-# Allow autofix for all enabled rules (when `--fix` is provided).
-fixable = ["ALL"]
-unfixable = []
-
-[tool.ruff.lint.per-file-ignores]
-# Tests can use assert, magic values, broader access patterns
-"tests/**/*.py" = [
-    "S101",     # assert is fine in tests
-    "ANN",      # don't require annotations in tests
-    "ARG",      # unused arguments common in fixtures
-    "PLR2004",  # magic values fine in tests
-    "SLF001",   # private member access fine in tests
-    "T20",      # print is fine in tests
-]
-# Scripts and CLI entry points
-"scripts/**/*.py" = ["T20", "INP001"]
-
-[tool.ruff.lint.isort]
-known-first-party = ["my_project"]  # <-- change to your package name
-force-single-line = false
-combine-as-imports = true
-
-[tool.ruff.lint.flake8-annotations]
-allow-star-arg-any = true
-suppress-none-returning = true
-
-[tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = []
-
-[tool.ruff.lint.flake8-type-checking]
-strict = true    # enforce TC001/TC002/TC003 aggressively
-runtime-evaluated-base-classes = [
-    "pydantic.BaseModel",
-]
-
-[tool.ruff.lint.pylint]
-max-args = 8
-max-returns = 8
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-docstring-code-format = true
-
-# =============================================================================
-# Pyrefly - Type Checker
-# =============================================================================
-
-[tool.pyrefly]
-# Check all function bodies, even untyped ones, and infer return types.
-# This is the strictest setting (Pyright-like behavior).
-untyped-def-behavior = "check-and-infer-return-type"
-
-# All errors enabled by default. Disable specific ones here if needed:
-# [tool.pyrefly.errors]
-# missing-return-annotation = false
-
-# =============================================================================
-# Pytest
-# =============================================================================
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "-ra",
-]
+[tool.coverage.run]
+source = ["one_ring_core"]
+branch = true

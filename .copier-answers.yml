@@ -1,0 +1,17 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.3.2
+_src_path: gh:otto-sellerstam/bonfire
+author_email: ottosellerstam@gmail.com
+author_name: Otto Sellerstam
+description: A toy project, building a truly async file IO using io_uring, and on
+    it building a custom event loop, as well as integration into asyncio's native
+    event loop"
+include_github_actions: true
+license: MIT
+packages:
+- one-ring-core
+- one-ring-loop
+- one-ring-asyncio
+project_name: one-ring
+project_type: monorepo
+python_version: '3.14'

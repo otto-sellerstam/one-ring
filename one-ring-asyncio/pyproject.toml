@@ -1,7 +1,26 @@
 [project]
 name = "one-ring-asyncio"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = ""
 requires-python = ">=3.14"
-dependencies = []
+license = { text = "MIT" }
+authors = [
+    { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
+]
+dependencies = [
+    "structlog>=24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/one_ring_asyncio"]
+
+# ── Coverage (per-package source) ───────────────────────────────────────
+# Other coverage settings (fail_under, exclude_lines) are in root pyproject.toml.
+
+[tool.coverage.run]
+source = ["one_ring_asyncio"]
+branch = true
