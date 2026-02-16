@@ -7,7 +7,7 @@ Overview of the **one-ring-loop** package.
 `one-ring-loop` is included as a workspace package. It is installed automatically with:
 
 ```bash
-uv sync --all-packages
+just setup
 ```
 
 ## API Reference

@@ -1,6 +1,9 @@
 """Tests for the log module."""
 
-import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pytest
 
 from one_ring_core.log import get_logger, setup_logging
 

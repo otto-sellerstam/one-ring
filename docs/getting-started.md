@@ -12,7 +12,7 @@ Clone the repository and install all packages:
 ```bash
 git clone <repo-url>
 cd one-ring
-uv sync --all-packages
+just setup
 ```
 ## Development
 
