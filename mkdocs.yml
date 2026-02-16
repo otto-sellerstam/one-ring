@@ -1,5 +1,5 @@
 site_name: one-ring
-site_description: A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop"
+site_description: A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop
 
 theme:
   name: material

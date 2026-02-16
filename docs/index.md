@@ -1,6 +1,6 @@
 # one-ring
 
-A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop"
+A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop
 
 ## Overview
 

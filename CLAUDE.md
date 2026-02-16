@@ -4,7 +4,7 @@ This file provides guidance for Claude (or any AI assistant) working on this mon
 
 ## Overview
 
-**one-ring** — A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop"
+**one-ring** — A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop
 
 This is a **uv workspace** containing multiple Python packages.
 Each package has its own `CLAUDE.md` with package-specific context.
