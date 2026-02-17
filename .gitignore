@@ -34,3 +34,6 @@ site/
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal testing.
+tmp/

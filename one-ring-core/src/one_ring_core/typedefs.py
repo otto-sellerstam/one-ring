@@ -1,1 +1,3 @@
-type UserData = int
+"""Type definitions."""
+
+type WorkerOperationID = int
