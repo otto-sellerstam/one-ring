@@ -82,6 +82,9 @@ ignore = [
     "TD003",  # missing issue link in TODO
     "FIX002", # line contains TODO (we allow TODOs)
     "ERA001", # commented-out code (too many false positives)
+    "EM101",  # no raw strings in exceptions
+    "TRY003", # length of exception messages
+    "TD002",  # authors in TODOs
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from abc import ABC, abstractmethod
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -38,7 +39,7 @@ from liburing import (  # Automatically set to typing.Any by config.
 class SubmissionQueueEntry:
     """Docstring."""
 
-    def __init__(self, sqe, user_data: UserData) -> None:
+    def __init__(self, sqe: Any, user_data: UserData) -> None:  # noqa: ANN401
         self._sqe = sqe
         self.user_data: UserData = user_data
         io_uring_sqe_set_data64(self._sqe, user_data)
@@ -93,35 +94,30 @@ class MutableIOVec(BaseIOVec):
 ### Operation request types
 
 
-@dataclass
-class IOOperation:
+class IOOperation(ABC):
     """Base class for all IO operations."""
 
+    @abstractmethod
     def prep(self, sqe: SubmissionQueueEntry) -> UserData:
         """Prepares a submission queue entry for the SQ."""
-        raise NotImplementedError("Operations should implement prepare method")
 
-    def extract(self, cqe) -> IOResult:
+    @abstractmethod
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        raise NotImplementedError("Operations should implement prepare method")
 
 
-@dataclass
 class FileIO(IOOperation):
     """Base class for all file IO operations."""
 
 
-@dataclass
 class NetworkIO(IOOperation):
     """Base class for all networking IO operations."""
 
 
-@dataclass
 class TimerIO(IOOperation):
     """Base class for all timer IO operations."""
 
 
-@dataclass
 class ControlIO(IOOperation):
     """Base class for all control IO operations."""
 
@@ -140,10 +136,10 @@ class FileOpen(FileIO):
         return sqe.user_data
 
     @override
-    def extract(self, cqe) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileOpenResult(
-            fd=cqe.res,
+            fd=completion_event.res,
         )
 
     @staticmethod
@@ -190,11 +186,11 @@ class FileRead(FileIO):
         return sqe.user_data
 
     @override
-    def extract(self, cqe) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileReadResult(
             content=self._vector_buffer.iov_base.decode(),
-            size=cqe.res,
+            size=completion_event.res,
         )
 
 
@@ -218,10 +214,10 @@ class FileWrite(FileIO):
         return sqe.user_data
 
     @override
-    def extract(self, cqe) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileWriteResult(
-            size=cqe.res,
+            size=completion_event.res,
         )
 
 
@@ -238,7 +234,7 @@ class FileClose(FileIO):
         return sqe.user_data
 
     @override
-    def extract(self, cqe) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileCloseResult()
 
@@ -252,6 +248,9 @@ class IOCompletion:
 
     user_data: UserData
     result: IOResult
+
+
+### TODO: These base classes can probably be removed.
 
 
 @dataclass
@@ -351,17 +350,9 @@ class Ring:
 
     def wait(self) -> CompletionEvent:
         """Docstring."""
-        io_uring_wait_cqe(self._ring, self._cqe)
+        seen = io_uring_wait_cqe(self._ring, self._cqe)
+        print(f"Ring saw {seen}")
         return self._consume_cqe()
-
-    def _consume_cqe(self) -> CompletionEvent:
-        event = CompletionEvent(
-            user_data=self._cqe.user_data,
-            res=self._cqe.res,
-            flags=self._cqe.flags,
-        )
-        io_uring_cqe_seen(self._ring, self._cqe)
-        return event
 
     def get_sqe(self, user_data: int) -> SubmissionQueueEntry:
         """Returns a SQE from the SQ, with set user_data."""
@@ -374,14 +365,27 @@ class Ring:
             user_data,
         )
 
+    def marke_cqe_seen(self) -> None:
+        """Marks a consumer completion event as seen.
+
+        TODO: Add checks that consumation and completion have been done in correct oder.
+        """
+        io_uring_cqe_seen(self._ring, self._cqe)
+
+    def _consume_cqe(self) -> CompletionEvent:
+        event = CompletionEvent(
+            user_data=self._cqe.user_data,
+            res=self._cqe.res,
+            flags=self._cqe.flags,
+        )
+        io_uring_cqe_seen(self._ring, self._cqe)
+        return event
+
 
 class IOWorker:
     """Docstring."""
 
     def __init__(self) -> None:
-        self._ring = Ring()
-
-        # Maps user_data (internal) to respective operation.
         self._active_submissions: dict[UserData, IOOperation] = {}
 
         # Buffers for reading data.
@@ -434,8 +438,8 @@ class IOWorker:
         Returns:
             IOCompletion
         """
-        io_uring_wait_cqe(self._ring, self._cqe)
-        return self._extract_cqe()
+        completion_event = self._ring.wait()
+        return self._transform_completion_event(completion_event)
 
     def peek(self) -> IOCompletion | None:
         """Nonblocking check if a completion event is available.
@@ -443,10 +447,10 @@ class IOWorker:
         Returns:
             IOCompletion if available, otherwise None.
         """
-        if self._ring.peek() == 0:
-            return self._extract_cqe()
+        if (completion_event := self._ring.peek()) is not None:
+            return self._transform_completion_event(completion_event)
 
-        return None
+        return completion_event
 
     def __enter__(self) -> Self:
         """Docstring."""
@@ -464,15 +468,18 @@ class IOWorker:
         """Docstring."""
         self._stack.__exit__(exc_type, exc_val, exc_tb)
 
-    def _extract_cqe(self) -> IOCompletion:
+    def _transform_completion_event(
+        self,
+        completion_event: CompletionEvent,
+    ) -> IOCompletion:
         """Fetches data from completion event and transforms to relevant type."""
-        user_data = self._cqe.user_data
+        user_data = completion_event.user_data
         # Now we need to handle the CQE based on the operation type of the submission.
         operation = self._pop_submission(user_data)
         try:
-            result = operation.extract(self._cqe)
+            result = operation.extract(completion_event)
         finally:
-            io_uring_cqe_seen(self._ring, self._cqe)
+            self._ring.marke_cqe_seen()
 
         return IOCompletion(
             user_data=user_data,
@@ -491,22 +498,25 @@ def main() -> None:
         worker.register(FileOpen(b"./testing/world.txt", "rwa"))
         worker.register(FileOpen(b"./testing/exclamation.txt", "rwa"))
         worker.submit()
-        i = 0
-        while i < 3:
-            completion = worker.peek()
-            if completion is not None and isinstance(completion.result, FileOpenResult):
-                print(f"Found {completion}")
-                worker.register(FileWrite(completion.result.fd, f"Otto {i}".encode()))
-                i += 1
+        print(worker.wait())
+        print(worker.wait())
+        print(worker.wait())
+        # i = 0
+        # while i < 3:
+        #    completion = worker.peek()
+        #    if completion is not None and isinstance(completion.result, FileOpenResult):
+        #        print(f"Found {completion}")
+        #        # worker.register(FileWrite(completion.result.fd, f"Otto {i}".encode()))
+        #        i += 1
 
-        worker.submit()
-
-        i = 0
-        while i < 3:
-            result = worker.peek()
-            if result is not None:
-                print(result)
-                i += 1
+        # worker.submit()
+        #
+        # i = 0
+        # while i < 3:
+        #    result = worker.peek()
+        #    if result is not None:
+        #        print(result)
+        #        i += 1
 
 
 if __name__ == "__main__":
