@@ -55,15 +55,17 @@ major, minor = (int(x) for x in os.uname().release.split(".")[:2])
 SUPPORTS_URING_BIND = (major, minor) >= (6, 7)
 
 
-class IOOperation(ABC):
+class IOOperation[T: IOResult](ABC):
     """Base class for all IO operations."""
+
+    result_type: type[T]
 
     @abstractmethod
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
         """Prepares a submission queue entry for the SQ."""
 
     @abstractmethod
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> T:
         """Extract fields from a completion queue event and wrap in correct type."""
 
     def is_error(self, completion_event: CompletionEvent) -> bool:
@@ -72,9 +74,10 @@ class IOOperation(ABC):
 
 
 @dataclass
-class FileOpen(IOOperation):
+class FileOpen(IOOperation[FileOpenResult]):
     """Docstring."""
 
+    result_type = FileOpenResult
     path: bytes
     mode: str
 
@@ -85,7 +88,7 @@ class FileOpen(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> FileOpenResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileOpenResult(
             fd=completion_event.res,
@@ -110,9 +113,10 @@ class FileOpen(IOOperation):
 
 
 @dataclass
-class FileRead(IOOperation):
+class FileRead(IOOperation[FileReadResult]):
     """File descriptor for the regular file."""
 
+    result_type = FileReadResult
     fd: int
 
     """None will read the whole file"""
@@ -136,7 +140,7 @@ class FileRead(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> FileReadResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileReadResult(
             content=bytes(self._vector_buffer.iov_base),
@@ -145,9 +149,10 @@ class FileRead(IOOperation):
 
 
 @dataclass
-class FileWrite(IOOperation):
+class FileWrite(IOOperation[FileWriteResult]):
     """File descriptor for the regular file."""
 
+    result_type = FileWriteResult
     fd: int
 
     """Data to write to file"""
@@ -164,7 +169,7 @@ class FileWrite(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> FileWriteResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileWriteResult(
             size=completion_event.res,
@@ -172,9 +177,10 @@ class FileWrite(IOOperation):
 
 
 @dataclass
-class Close(IOOperation):
+class Close(IOOperation[CloseResult]):
     """File descriptor for the regular file."""
 
+    result_type = CloseResult
     fd: int
 
     @override
@@ -184,15 +190,16 @@ class Close(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> CloseResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return CloseResult()
 
 
 @dataclass
-class Sleep(IOOperation):
+class Sleep(IOOperation[SleepResult]):
     """File descriptor for the regular file."""
 
+    result_type = SleepResult
     time: int
     _timespec: Any = field(init=False, repr=False)
 
@@ -204,7 +211,7 @@ class Sleep(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SleepResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return SleepResult()
 
@@ -215,9 +222,10 @@ class Sleep(IOOperation):
 
 
 @dataclass
-class SocketCreate(IOOperation):
+class SocketCreate(IOOperation[SocketCreateResult]):
     """Prepares a socket."""
 
+    result_type = SocketCreateResult
     """address family (AF_INET=IPv4, AF_INET6=IPv6, AF_UNIX=unix socket)"""
     domain: int = SocketFamily.AF_INET
 
@@ -234,15 +242,16 @@ class SocketCreate(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketCreateResult:
         """Docstring."""
         return SocketCreateResult(completion_event.res)
 
 
 @dataclass
-class SocketSetOpt(IOOperation):
+class SocketSetOpt(IOOperation[SocketSetOptResult]):
     """Configures options for a socket."""
 
+    result_type = SocketSetOptResult
     """The file descriptor of the socket"""
     fd: int
 
@@ -276,7 +285,7 @@ class SocketSetOpt(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketSetOptResult:
         """Docstring."""
         return SocketSetOptResult()
 
@@ -286,9 +295,10 @@ class SocketSetOpt(IOOperation):
 
 
 @dataclass
-class SocketBind(IOOperation):
+class SocketBind(IOOperation[SocketBindResult]):
     """Assign address and port to a socket."""
 
+    result_type = SocketBindResult
     """The file descriptor of the socket"""
     fd: int
 
@@ -327,7 +337,7 @@ class SocketBind(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketBindResult:
         """Docstring."""
         return SocketBindResult()
 
@@ -337,9 +347,10 @@ class SocketBind(IOOperation):
 
 
 @dataclass
-class SocketListen(IOOperation):
+class SocketListen(IOOperation[SocketListenResult]):
     """Marks a socket as passive."""
 
+    result_type = SocketListenResult
     """The file descriptor of the socket"""
     fd: int
 
@@ -366,7 +377,7 @@ class SocketListen(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketListenResult:
         """Docstring."""
         return SocketListenResult()
 
@@ -376,9 +387,10 @@ class SocketListen(IOOperation):
 
 
 @dataclass
-class SocketAccept(IOOperation):
+class SocketAccept(IOOperation[SocketAcceptResult]):
     """Accepts a connection on a socket."""
 
+    result_type = SocketAcceptResult
     """The file descriptor of the socket"""
     fd: int
 
@@ -389,15 +401,16 @@ class SocketAccept(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketAcceptResult:
         """Docstring."""
         return SocketAcceptResult(completion_event.res)
 
 
 @dataclass
-class SocketRecv(IOOperation):
+class SocketRecv(IOOperation[SocketRecvResult]):
     """Reads from a socket."""
 
+    result_type = SocketRecvResult
     """The socket file descriptor to read from"""
     fd: int
 
@@ -418,7 +431,7 @@ class SocketRecv(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketRecvResult:
         """Docstring."""
         return SocketRecvResult(
             content=bytes(self._buffer[: completion_event.res]),
@@ -427,9 +440,10 @@ class SocketRecv(IOOperation):
 
 
 @dataclass
-class SocketSend(IOOperation):
+class SocketSend(IOOperation[SocketSendResult]):
     """Sends data to a socket."""
 
+    result_type = SocketSendResult
     """The file descriptor of the socket to send data to."""
     fd: int
 
@@ -443,15 +457,16 @@ class SocketSend(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketSendResult:
         """Docstring."""
         return SocketSendResult(completion_event.res)
 
 
 @dataclass
-class SocketConnect(IOOperation):
+class SocketConnect(IOOperation[SocketConnectResult]):
     """Connects to a socket."""
 
+    result_type = SocketConnectResult
     """The file descriptor of the socket to send data to."""
     fd: int
 
@@ -477,6 +492,6 @@ class SocketConnect(IOOperation):
         return sqe.user_data
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> IOResult:
+    def extract(self, completion_event: CompletionEvent) -> SocketConnectResult:
         """Docstring."""
         return SocketConnectResult()

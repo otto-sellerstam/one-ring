@@ -12,18 +12,7 @@ from one_ring_core.operations import (
     SocketSend,
     SocketSetOpt,
 )
-from one_ring_core.results import (
-    CloseResult,
-    SocketAcceptResult,
-    SocketBindResult,
-    SocketConnectResult,
-    SocketCreateResult,
-    SocketListenResult,
-    SocketRecvResult,
-    SocketSendResult,
-    SocketSetOptResult,
-)
-from one_ring_loop.typedefs import _execute
+from one_ring_loop._coro import _execute
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
@@ -34,27 +23,27 @@ if TYPE_CHECKING:
 
 
 def _create() -> Coro[int]:
-    result = yield from _execute(SocketCreate(), SocketCreateResult)
+    result = yield from _execute(SocketCreate())
     return result.fd
 
 
 def _set_options(fd: int) -> Coro[None]:
-    yield from _execute(SocketSetOpt(fd), SocketSetOptResult)
+    yield from _execute(SocketSetOpt(fd))
     return None
 
 
 def _bind(fd: int, host: bytes, port: int) -> Coro[None]:
-    yield from _execute(SocketBind(fd, host, port), SocketBindResult)
+    yield from _execute(SocketBind(fd, host, port))
     return None
 
 
 def _listen(fd: int) -> Coro[None]:
-    yield from _execute(SocketListen(fd), SocketListenResult)
+    yield from _execute(SocketListen(fd))
     return None
 
 
 def _connect(fd: int, host: bytes, port: int) -> Coro[None]:
-    yield from _execute(SocketConnect(fd, host, port), SocketConnectResult)
+    yield from _execute(SocketConnect(fd, host, port))
     return None
 
 
@@ -88,12 +77,12 @@ class Server:
         Returns:
             client file descriptor
         """
-        result = yield from _execute(SocketAccept(self.fd), SocketAcceptResult)
+        result = yield from _execute(SocketAccept(self.fd))
         return Connection(result.fd)
 
     def close(self) -> Coro[None]:
         """Close socket."""
-        yield from _execute(Close(self.fd), CloseResult)
+        yield from _execute(Close(self.fd))
         return None
 
 
@@ -106,15 +95,15 @@ class Connection:
 
     def recv(self, size: int) -> Coro[bytes]:
         """Reads data from socket."""
-        result = yield from _execute(SocketRecv(self.fd, size), SocketRecvResult)
+        result = yield from _execute(SocketRecv(self.fd, size))
         return result.content
 
     def send(self, data: bytes) -> Coro[int]:
         """Sends data to socket."""
-        result = yield from _execute(SocketSend(self.fd, data), SocketSendResult)
+        result = yield from _execute(SocketSend(self.fd, data))
         return result.size
 
     def close(self) -> Coro[None]:
         """Close socket."""
-        yield from _execute(Close(self.fd), CloseResult)
+        yield from _execute(Close(self.fd))
         return None

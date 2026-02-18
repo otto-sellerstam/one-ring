@@ -37,3 +37,6 @@ Thumbs.db
 
 # Personal testing.
 tmp/
+
+# Agents
+.claude

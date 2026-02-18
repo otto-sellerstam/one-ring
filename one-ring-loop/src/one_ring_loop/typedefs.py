@@ -27,14 +27,3 @@ class WaitsOn:
 
 type TaskID = WorkerOperationID
 type Coro[T] = Generator[IOOperation | WaitsOn, IOCompletion[IOResult] | None, T]
-
-
-def _execute[T: IOResult](op: IOOperation, result_type: type[T]) -> Coro[T]:
-    """Unwrap an IO completion into the expected result type."""
-    completion = yield op
-    if completion is not None and isinstance(
-        result := completion.unwrap(), result_type
-    ):
-        return result
-    msg = f"Expected {result_type.__name__}, got {type(completion)}"
-    raise TypeError(msg)

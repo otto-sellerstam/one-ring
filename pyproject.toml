@@ -33,7 +33,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "ruff>=0.9",
-    "pyrefly>=0.50",
+    "pyrefly>=0.53",
     "pre-commit>=4.0",
 ]
 docs = [
