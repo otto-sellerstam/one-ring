@@ -1,16 +1,18 @@
 # one-ring
 
-A toy project, building a truly async file IO using io_uring. Used for building a custom event loop using classic coroutines, as well as integration into asyncio's native event loop.
+Generator based async I/O from scratch using Linux's `io_uring`, a custom event loop, and (soon) an asyncio integration layer.
 
 ## Packages
 
-- **one-ring-core** — `one-ring-core/`
-- **one-ring-loop** — `one-ring-loop/`
-- **one-ring-asyncio** — `one-ring-asyncio/`
+- **one-ring-core** — Low-level `io_uring` wrapper: ring management, IO operations, and result types
+- **one-ring-loop** — Custom event loop with task scheduling, file I/O, socket I/O, and timers
+- **one-ring-asyncio** — asyncio event loop integration (WIP)
 
 ## Example
 
-An echo server built on `one-ring-loop`. See source [here](examples/echo_server.py)
+An echo server built on `one-ring-loop`. See source [here](examples/echo_server.py).
+
+Run it and connect via `ncat`!
 
 ```python
 from typing import TYPE_CHECKING
@@ -48,7 +50,6 @@ def echo_server() -> Coro[None]:
 if __name__ == "__main__":
     run(echo_server())
 ```
-
 
 ## Setup
 
