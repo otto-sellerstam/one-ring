@@ -8,6 +8,7 @@ from one_ring_core.results import (
     FileReadResult,
     FileWriteResult,
 )
+from one_ring_loop.typedefs import _execute
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
@@ -21,43 +22,22 @@ class File:
 
     def read(self) -> Coro[str]:
         """Read file low-level coroutine."""
-        read_completion = yield FileRead(self.fd)
-        if read_completion is not None and isinstance(
-            result := read_completion.unwrap(), FileReadResult
-        ):
-            return result.content.decode()
-
-        raise ValueError("read_file received wrong result type")
+        result = yield from _execute(FileRead(self.fd), FileReadResult)
+        return result.content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:
-        """Read file low-level coroutine."""
+        """Write file low-level coroutine."""
         _data = data.encode() if isinstance(data, str) else data
-
-        read_completion = yield FileWrite(self.fd, _data)
-        if read_completion is not None and isinstance(
-            result := read_completion.unwrap(), FileWriteResult
-        ):
-            return result.size
-
-        raise ValueError("write_file received wrong result type")
+        result = yield from _execute(FileWrite(self.fd, _data), FileWriteResult)
+        return result.size
 
     def close(self) -> Coro[None]:
-        """Read file low-level coroutine."""
-        close_completion = yield Close(self.fd)
-        if close_completion is not None and isinstance(
-            close_completion.unwrap(), CloseResult
-        ):
-            return None
-
-        raise ValueError("close_file received wrong result type")
+        """Close file low-level coroutine."""
+        yield from _execute(Close(self.fd), CloseResult)
+        return None
 
 
 def open_file(path: str, mode: str = "r") -> Coro[File]:
-    """Test file open coroutine."""
-    open_completion = yield FileOpen(path.encode(), mode)
-    if open_completion is not None and isinstance(
-        result := open_completion.unwrap(), FileOpenResult
-    ):
-        return File(result.fd)
-
-    raise ValueError("open_file received wrong result type")
+    """Open file coroutine."""
+    result = yield from _execute(FileOpen(path.encode(), mode), FileOpenResult)
+    return File(result.fd)
