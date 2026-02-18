@@ -121,20 +121,34 @@ _loop = Loop()
 
 
 def create_task[T](gen: Coro[T]) -> Task[T]:
-    """Creates a task by adding it to the event loop."""
+    """Creates a task by adding it to the event loop.
+
+    Args:
+        gen: the coroutine for the Task to wrap
+    """
     task: Task[T] = Task(gen, _get_new_task_id())
     _loop.add_task(task)
     return task
 
 
 def run(gen: Coro) -> None:
-    """Entry point for running the event loop."""
+    """Entry point for running the event loop.
+
+    Creates a Task from the generator on the event loop, and runs the loop.
+
+    Args:
+        gen: the entry coroutine
+    """
     create_task(gen)
     _loop.run()
 
 
 def join[T](task: Task[T]) -> Coro[T]:
-    """Wrapper to await tasks."""
+    """Wrapper to await tasks.
+
+    Args:
+        task: the task you want to yield from (await)
+    """
     if not task.done:
         yield WaitsOn(task.task_id)
     return task.result
