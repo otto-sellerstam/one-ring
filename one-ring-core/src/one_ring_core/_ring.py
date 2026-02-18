@@ -41,23 +41,52 @@ class SubmissionQueueEntry:
         io_uring_sqe_set_data64(self._sqe, user_data)
 
     def prep_openat(self, path: bytes, flags: int, mode: int, dir_fd: int) -> None:
-        """Preps SQE for opening file."""
+        """Preps SQE for opening file.
+
+        Args:
+            path: the path to the file to open
+            flags: io_uring specific flags
+            mode: to update
+            dir_fd: if relative to another directory
+        """
         io_uring_prep_openat(self._sqe, path, flags, mode, dir_fd)
 
     def prep_read(self, fd: int, iov: MutableIOVec, offset: int) -> None:
-        """Preps SQE for reading from file."""
+        """Preps SQE for reading from file.
+
+        Args:
+            fd: file descriptor for file to read
+            iov: mutable vector buffer for io_uring to fill with content
+            offset: reading offset
+        """
         io_uring_prep_read(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_write(self, fd: int, iov: IOVec, offset: int) -> None:
-        """Preps SQE for writing to file."""
+        """Preps SQE for writing to file.
+
+        Args:
+            fd: file descriptor for file to write to
+            iov: vector buffer containing content to write
+            offset: writing offset
+        """
         io_uring_prep_write(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_close(self, fd: int) -> None:
-        """Preps SQE for closing file."""
+        """Preps SQE for closing file.
+
+        Args:
+            fd: file descriptor for file to close
+        """
         io_uring_prep_close(self._sqe, fd)
 
     def prep_timeout(self, ts: Any, count: int = 0, flags: int = 0) -> None:  # noqa: ANN401
-        """Prepares SQE for timeout (used for async sleep)."""
+        """Prepares SQE for timeout (used for async sleep).
+
+        Args:
+            ts: io_uring timespec
+            count: timeout fires after "count" number of CQEs
+            flags: modifier flags
+        """
         io_uring_prep_timeout(self._sqe, ts, count, flags)
 
 
@@ -110,7 +139,7 @@ class Ring:
     _cqe_ready: bool = field(default=False, init=False)
 
     def __enter__(self) -> Self:
-        """Docstring."""
+        """Initialises submission ring buffer."""
         io_uring_queue_init(self.depth, self._ring, 0)
         return self
 
@@ -120,11 +149,15 @@ class Ring:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        """Docstring."""
+        """Exits submission ring buffer."""
         io_uring_queue_exit(self._ring)
 
     def submit(self) -> int:
-        """Submits the SQ to the kernel."""
+        """Submits the SQ to the kernel.
+
+        Returns:
+            Numbers of SQE events submitted
+        """
         # This should check that all new registrations where actually submitted
         return io_uring_submit(self._ring)
 
