@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from one_ring_core.operations import FileClose, FileOpen, FileRead, FileWrite
+from one_ring_core.operations import Close, FileOpen, FileRead, FileWrite
 from one_ring_core.results import (
-    FileCloseResult,
+    CloseResult,
     FileOpenResult,
     FileReadResult,
     FileWriteResult,
@@ -41,13 +41,13 @@ class File:
 
         raise ValueError("write_file received wrong result type")
 
-    def close(self) -> Coro[bool]:
+    def close(self) -> Coro[None]:
         """Read file low-level coroutine."""
-        close_completion = yield FileClose(self.fd)
+        close_completion = yield Close(self.fd)
         if close_completion is not None and isinstance(
-            result := close_completion.unwrap(), FileCloseResult
+            close_completion.unwrap(), CloseResult
         ):
-            return result.success
+            return None
 
         raise ValueError("close_file received wrong result type")
 

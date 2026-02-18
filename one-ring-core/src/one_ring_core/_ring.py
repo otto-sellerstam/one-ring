@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from socket import AF_INET, SO_REUSEADDR, SOCK_STREAM, SOL_SOCKET
 from typing import TYPE_CHECKING, Any, Self
-
-if TYPE_CHECKING:
-    from types import TracebackType
-
-    from one_ring_core.typedefs import WorkerOperationID
 
 from liburing import (  # Automatically set to typing.Any by config.
     io_uring,
@@ -14,9 +10,18 @@ from liburing import (  # Automatically set to typing.Any by config.
     io_uring_cqe_seen,
     io_uring_get_sqe,
     io_uring_peek_cqe,
+    io_uring_prep_accept,
+    io_uring_prep_bind,
     io_uring_prep_close,
+    io_uring_prep_connect,
+    io_uring_prep_listen,
+    io_uring_prep_nop,
     io_uring_prep_openat,
     io_uring_prep_read,
+    io_uring_prep_recv,
+    io_uring_prep_send,
+    io_uring_prep_setsockopt,
+    io_uring_prep_socket,
     io_uring_prep_timeout,
     io_uring_prep_write,
     io_uring_queue_exit,
@@ -25,9 +30,16 @@ from liburing import (  # Automatically set to typing.Any by config.
     io_uring_submit,
     io_uring_wait_cqe,
     iovec,
+    sockaddr,
 )
 
 from one_ring_core.log import get_logger
+
+if TYPE_CHECKING:
+    import array
+    from types import TracebackType
+
+    from one_ring_core.typedefs import WorkerOperationID
 
 logger = get_logger(__name__)
 
@@ -88,6 +100,113 @@ class SubmissionQueueEntry:
             flags: modifier flags
         """
         io_uring_prep_timeout(self._sqe, ts, count, flags)
+
+    def prep_nop(self) -> None:
+        """Prepares a nop."""
+        io_uring_prep_nop(self._sqe)
+
+    def prep_socket(
+        self,
+        domain: int = AF_INET,
+        sock_type: int = SOCK_STREAM,
+        protocol: int = 0,
+        flags: int = 0,
+    ) -> None:
+        """Prepares a socket. Wants to return a file descriptor.
+
+        Args:
+            domain: address family (AF_INET=IPv4, AF_INET6=IPv6, AF_UNIX=unix socket)
+            sock_type: transport protocol (SOCK_STREAM=TCP, SOCK_DGRAM=UDP)
+            protocol: further protocol specifications (0=obvious one)
+            flags: extra socket flags
+        """
+        io_uring_prep_socket(self._sqe, domain, sock_type, protocol, flags)
+
+    def prep_setsocketopt(
+        self,
+        fd: int,
+        val: array.array,
+        level: int = SOL_SOCKET,
+        optname: int = SO_REUSEADDR,
+    ) -> None:
+        """Configures socket options.
+
+        Args:
+            fd: socket file descriptor
+            level: which protocol layer the option belongs to
+            optname: which option
+            val: option value array
+        """
+        io_uring_prep_setsockopt(self._sqe, fd, level, optname, val)
+
+    def prep_socket_bind(
+        self,
+        fd: int,
+        addr: sockaddr,
+    ) -> None:
+        """Assign address and port to the socket.
+
+        Args:
+            fd: socket file descriptor
+            addr: a sockaddr object
+        """
+        io_uring_prep_bind(self._sqe, fd, addr)
+
+    def prep_socket_listen(
+        self,
+        fd: int,
+        backlog: int = 128,
+    ) -> None:
+        """Markes socket as passive.
+
+        Args:
+            fd: socket file descriptor
+            backlog: maximum number of connections the kernel will queue before accept
+        """
+        io_uring_prep_listen(self._sqe, fd, backlog)
+
+    def prep_socket_accept(
+        self, fd: int, addr: sockaddr = None, flags: int = 0
+    ) -> None:
+        """Waits for a client to accept.
+
+        Args:
+            fd: socket file descriptor
+            addr: a sockaddr to fill with the client's address info (their IP and port)
+            flags: extra socket flags
+        """
+        io_uring_prep_accept(self._sqe, fd, addr, flags)
+
+    def prep_socket_recv(self, fd: int, buf: bytearray, flags: int = 0) -> None:
+        """Reads data from a connected socket.
+
+        Args:
+            fd: socket file descriptor
+            buf: a buffer to receive data into
+            size: how many bytes to read at most
+            flags: extra flags
+        """
+        io_uring_prep_recv(self._sqe, fd, buf, len(buf), flags)
+
+    def prep_socket_send(self, fd: int, buf: bytes | bytearray, flags: int = 0) -> None:
+        """Writes data to a connected socket.
+
+        Args:
+            fd: socket file descriptor
+            buf: data to send
+            size: how many bytes to send
+            flags: extra flags
+        """
+        io_uring_prep_send(self._sqe, fd, buf, len(buf), flags)
+
+    def prep_connect(self, fd: int, addr: sockaddr) -> None:
+        """Prepares to connect to a socket.
+
+        Args:
+            fd: the file descriptor of the socket
+            addr: the address of the socket
+        """
+        io_uring_prep_connect(self._sqe, fd, addr)
 
 
 class BaseIOVec:

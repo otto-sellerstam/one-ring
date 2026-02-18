@@ -192,10 +192,13 @@ def gather[T1, T2, T3, T4, T5, T6](
 
 
 def gather[T](*tasks: Task[T]) -> Coro[tuple[T, ...]]:
-    """Wrapper to await tasks.
+    """Wrapper to await multiple tasks.
 
     Args:
         tasks: the task you want to yield from (await)
+
+    Returns:
+        Final return value when yielded from will be a tuple of task results
     """
     yield from _wait_on(*tasks)
     return tuple(task.result for task in tasks)

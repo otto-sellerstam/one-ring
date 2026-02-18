@@ -28,26 +28,6 @@ class IOResult:
 
 
 @dataclass(frozen=True)
-class FileIOResult(IOResult):
-    """Base class for all file IO operation results."""
-
-
-@dataclass(frozen=True)
-class NetworkIOResult(IOResult):
-    """Base class for all networking IO operation results."""
-
-
-@dataclass(frozen=True)
-class TimerIOResult(IOResult):
-    """Base class for all timer IO operation results."""
-
-
-@dataclass(frozen=True)
-class ControlIOResult(IOResult):
-    """Base class for all control IO operation results."""
-
-
-@dataclass(frozen=True)
 class FileOpenResult(IOResult):
     """Result of a file open operation."""
 
@@ -70,14 +50,60 @@ class FileWriteResult(IOResult):
 
 
 @dataclass(frozen=True)
-class FileCloseResult(IOResult):
+class CloseResult(IOResult):
     """Result of a file close operation."""
-
-    success: bool
 
 
 @dataclass(frozen=True)
 class SleepResult(IOResult):
     """Result of sleeping."""
 
-    success: bool
+
+@dataclass(frozen=True)
+class SocketCreateResult(IOResult):
+    """Docstring."""
+
+    fd: int
+
+
+@dataclass(frozen=True)
+class SocketSetOptResult(IOResult):
+    """Docstring."""
+
+
+@dataclass(frozen=True)
+class SocketBindResult(IOResult):
+    """Docstring."""
+
+
+@dataclass(frozen=True)
+class SocketListenResult(IOResult):
+    """Docstring."""
+
+
+@dataclass(frozen=True)
+class SocketAcceptResult(IOResult):
+    """Docstring."""
+
+    """File descriptor for new client connection."""
+    fd: int
+
+
+@dataclass(frozen=True)
+class SocketRecvResult(IOResult):
+    """Docstring."""
+
+    content: bytes
+    size: int
+
+
+@dataclass(frozen=True)
+class SocketSendResult(IOResult):
+    """Docstring."""
+
+    size: int
+
+
+@dataclass(frozen=True)
+class SocketConnectResult(IOResult):
+    """Docstring."""

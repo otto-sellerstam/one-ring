@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import array
 import errno
 import os
+import socket
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
@@ -15,16 +17,30 @@ from liburing import (  # Automatically set to typing.Any by config.
     O_RDONLY,
     O_RDWR,
     O_WRONLY,
+    SO_REUSEADDR,
+    SOL_SOCKET,
+    SocketFamily,
+    SocketType,
+    sockaddr,
     timespec,
 )
 
 from one_ring_core._ring import IOVec, MutableIOVec
+from one_ring_core.log import get_logger
 from one_ring_core.results import (
-    FileCloseResult,
+    CloseResult,
     FileOpenResult,
     FileReadResult,
     FileWriteResult,
     SleepResult,
+    SocketAcceptResult,
+    SocketBindResult,
+    SocketConnectResult,
+    SocketCreateResult,
+    SocketListenResult,
+    SocketRecvResult,
+    SocketSendResult,
+    SocketSetOptResult,
 )
 
 if TYPE_CHECKING:
@@ -32,8 +48,6 @@ if TYPE_CHECKING:
     from one_ring_core.results import IOResult
     from one_ring_core.typedefs import WorkerOperationID
 
-
-from one_ring_core.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -101,9 +115,10 @@ class FileRead(IOOperation):
     """None will read the whole file"""
     size: int | None = None
 
-    """Not sure what this does"""
+    """Offset for file read"""
     offset: int = 0
 
+    """Buffer to be filled with contents from read operation"""
     _vector_buffer: MutableIOVec = field(init=False, repr=False)
 
     @override
@@ -154,7 +169,7 @@ class FileWrite(IOOperation):
 
 
 @dataclass
-class FileClose(IOOperation):
+class Close(IOOperation):
     """File descriptor for the regular file."""
 
     fd: int
@@ -168,7 +183,7 @@ class FileClose(IOOperation):
     @override
     def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        return FileCloseResult(completion_event.res == 0)
+        return CloseResult()
 
 
 @dataclass
@@ -188,9 +203,253 @@ class Sleep(IOOperation):
     @override
     def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        return SleepResult(completion_event.res == -errno.ETIME)
+        return SleepResult()
 
     @override
     def is_error(self, completion_event: CompletionEvent) -> bool:
         """Override since timeout returns -ETIME on success."""
         return completion_event.res != -errno.ETIME
+
+
+@dataclass
+class SocketCreate(IOOperation):
+    """Prepares a socket."""
+
+    """address family (AF_INET=IPv4, AF_INET6=IPv6, AF_UNIX=unix socket)"""
+    domain: int = SocketFamily.AF_INET
+
+    """ransport protocol (SOCK_STREAM=TCP, SOCK_DGRAM=UDP)"""
+    sock_type: int = SocketType.SOCK_STREAM
+
+    """further protocol specifications (0=obvious one chosen by kernel)"""
+    protocol: int = 0
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Docstring."""
+        sqe.prep_socket(self.domain, self.sock_type, self.protocol)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketCreateResult(completion_event.res)
+
+
+@dataclass
+class SocketSetOpt(IOOperation):
+    """Configures options for a socket."""
+
+    """The file descriptor of the socket"""
+    fd: int
+
+    """Docstring"""
+    level: int = SOL_SOCKET
+
+    """Docstring"""
+    optname: int = SO_REUSEADDR
+
+    """Docstring"""
+    val: array.array = field(default_factory=lambda: array.array("i", [1]))
+
+    _sync_result: int | None = field(init=False, default=None)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.setsockopt(self.level, self.optname, self.val)
+            self._sync_result = 0
+        except OSError as e:
+            self._sync_result = None if e.errno is None else -e.errno
+        finally:
+            sock.close()
+
+        sqe.prep_nop()
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketSetOptResult()
+
+    @override
+    def is_error(self, completion_event) -> bool:
+        return self._sync_result is None or self._sync_result < 0
+
+
+@dataclass
+class SocketBind(IOOperation):
+    """Assign address and port to a socket."""
+
+    """The file descriptor of the socket"""
+    fd: int
+
+    """The IP to assign"""
+    ip: bytes
+
+    """The port to assign"""
+    port: int
+
+    _sync_result: int | None = field(init=False, default=None)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind((self.ip.decode(), self.port))
+            self._sync_result = 0
+        except OSError as e:
+            self._sync_result = None if e.errno is None else -e.errno
+            print("Bind errored out with")
+            print(e)
+            print(e.errno)
+            print("Set sync result to", self._sync_result)
+        finally:
+            sock.close()
+
+        sqe.prep_nop()
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketBindResult()
+
+    @override
+    def is_error(self, completion_event) -> bool:
+        return self._sync_result is None or self._sync_result < 0
+
+
+@dataclass
+class SocketListen(IOOperation):
+    """Marks a socket as passive."""
+
+    """The file descriptor of the socket"""
+    fd: int
+
+    """maximum number of connections the kernel will queue before accept"""
+    backlog: int = 128
+
+    _sync_result: int | None = field(init=False, default=0)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.listen(self.backlog)
+            self._sync_result = 0
+        except OSError as e:
+            self._sync_result = None if e.errno is None else -e.errno
+        finally:
+            sock.close()
+
+        sqe.prep_nop()
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketListenResult()
+
+    @override
+    def is_error(self, completion_event) -> bool:
+        return self._sync_result is None or self._sync_result < 0
+
+
+@dataclass
+class SocketAccept(IOOperation):
+    """Accepts a connection on a socket."""
+
+    """The file descriptor of the socket"""
+    fd: int
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Docstring."""
+        sqe.prep_socket_accept(self.fd)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketAcceptResult(completion_event.res)
+
+
+@dataclass
+class SocketRecv(IOOperation):
+    """Reads from a socket."""
+
+    """The socket file descriptor to read from"""
+    fd: int
+
+    """The length of the read content"""
+    size: int
+
+    """Buffer to be filled with contents from read operation"""
+    _buffer: bytearray = field(init=False, repr=False)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Docstring."""
+        self._buffer = bytearray(self.size)
+        sqe.prep_socket_recv(self.fd, self._buffer)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketRecvResult(
+            content=bytes(self._buffer[: completion_event.res]),
+            size=completion_event.res,
+        )
+
+
+@dataclass
+class SocketSend(IOOperation):
+    """Sends data to a socket."""
+
+    """The file descriptor of the socket to send data to."""
+    fd: int
+
+    """The data to send."""
+    data: bytes
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Docstring."""
+        sqe.prep_socket_send(self.fd, self.data)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketSendResult(completion_event.res)
+
+
+@dataclass
+class SocketConnect(IOOperation):
+    """Connects to a socket."""
+
+    """The file descriptor of the socket to send data to."""
+    fd: int
+
+    """The IP to connect to"""
+    ip: bytes
+
+    """The port to connect to"""
+    port: int
+
+    _sockaddr: Any = field(init=False)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Docstring."""
+        self._sockaddr = sockaddr(SocketFamily.AF_INET, self.ip, self.port)
+        sqe.prep_connect(self.fd, self._sockaddr)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Docstring."""
+        return SocketConnectResult()
