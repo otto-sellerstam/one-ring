@@ -75,9 +75,8 @@ class Loop:
         completions: set[IOCompletion] = set()
 
         if all(task.waiting for task in self.tasks.values()):
-            if not any(
-                isinstance(t.awaiting_operation, IOOperation)
-                for t in self.tasks.values()
+            if all(
+                isinstance(t.awaiting_operation, WaitsOn) for t in self.tasks.values()
             ):
                 raise RuntimeError(
                     "Deadlock: all tasks waiting on dependencies, no pending I/O"
@@ -121,7 +120,7 @@ class Loop:
 _loop = Loop()
 
 
-def create_task[T](gen: Coro[T]) -> Task:
+def create_task[T](gen: Coro[T]) -> Task[T]:
     """Creates a task by adding it to the event loop."""
     task: Task[T] = Task(gen, _get_new_task_id())
     _loop.add_task(task)
@@ -136,5 +135,6 @@ def run(gen: Coro) -> None:
 
 def join[T](task: Task[T]) -> Coro[T]:
     """Wrapper to await tasks."""
-    yield WaitsOn(task.task_id)
+    if not task.done:
+        yield WaitsOn(task.task_id)
     return task.result

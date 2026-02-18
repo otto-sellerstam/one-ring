@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import errno
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from liburing import (  # Automatically set to typing.Any by config.
     AT_FDCWD,
@@ -14,6 +15,7 @@ from liburing import (  # Automatically set to typing.Any by config.
     O_RDONLY,
     O_RDWR,
     O_WRONLY,
+    timespec,
 )
 
 from one_ring_core._ring import IOVec, MutableIOVec
@@ -22,6 +24,7 @@ from one_ring_core.results import (
     FileOpenResult,
     FileReadResult,
     FileWriteResult,
+    SleepResult,
 )
 
 if TYPE_CHECKING:
@@ -46,28 +49,13 @@ class IOOperation(ABC):
     def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
 
-
-### TODO: These base classes can probably be removed.
-
-
-class FileIO(IOOperation):
-    """Base class for all file IO operations."""
-
-
-class NetworkIO(IOOperation):
-    """Base class for all networking IO operations."""
-
-
-class TimerIO(IOOperation):
-    """Base class for all timer IO operations."""
-
-
-class ControlIO(IOOperation):
-    """Base class for all control IO operations."""
+    def is_error(self, completion_event: CompletionEvent) -> bool:
+        """Determines if the completion event is an error."""
+        return completion_event.res < 0
 
 
 @dataclass
-class FileOpen(FileIO):
+class FileOpen(IOOperation):
     """Docstring."""
 
     path: bytes
@@ -105,7 +93,7 @@ class FileOpen(FileIO):
 
 
 @dataclass
-class FileRead(FileIO):
+class FileRead(IOOperation):
     """File descriptor for the regular file."""
 
     fd: int
@@ -116,7 +104,7 @@ class FileRead(FileIO):
     """Not sure what this does"""
     offset: int = 0
 
-    _vector_buffer: MutableIOVec = field(init=False)
+    _vector_buffer: MutableIOVec = field(init=False, repr=False)
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
@@ -133,13 +121,13 @@ class FileRead(FileIO):
     def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileReadResult(
-            content=self._vector_buffer.iov_base,
+            content=bytes(self._vector_buffer.iov_base),
             size=completion_event.res,
         )
 
 
 @dataclass
-class FileWrite(FileIO):
+class FileWrite(IOOperation):
     """File descriptor for the regular file."""
 
     fd: int
@@ -166,7 +154,7 @@ class FileWrite(FileIO):
 
 
 @dataclass
-class FileClose(FileIO):
+class FileClose(IOOperation):
     """File descriptor for the regular file."""
 
     fd: int
@@ -180,4 +168,29 @@ class FileClose(FileIO):
     @override
     def extract(self, completion_event: CompletionEvent) -> IOResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        return FileCloseResult()
+        return FileCloseResult(completion_event.res == 0)
+
+
+@dataclass
+class Sleep(IOOperation):
+    """File descriptor for the regular file."""
+
+    time: int
+    _timespec: Any = field(init=False, repr=False)
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Prepares a submission queue entry for the SQ."""
+        self._timespec = timespec(self.time)
+        sqe.prep_timeout(self._timespec)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> IOResult:
+        """Extract fields from a completion queue event and wrap in correct type."""
+        return SleepResult(completion_event.res == -errno.ETIME)
+
+    @override
+    def is_error(self, completion_event: CompletionEvent) -> bool:
+        """Override since timeout returns -ETIME on success."""
+        return completion_event.res != -errno.ETIME

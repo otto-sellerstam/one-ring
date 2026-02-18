@@ -21,7 +21,7 @@ class Task[TResult]:
     """Drives coroutines forwards."""
 
     """The generator coroutine wrapped by the task."""
-    gen: Coro
+    gen: Coro = field(repr=False)
 
     """The ID of the task."""
     task_id: TaskID
@@ -29,6 +29,7 @@ class Task[TResult]:
     """If the task is currently waiting on the kernel to finish IO."""
     waiting: bool = field(default=False, init=False)
 
+    # TODO: Make enum?
     """The current IO operation that is performed."""
     awaiting_operation: IOOperation | WaitsOn | None = field(default=None, init=False)
 
@@ -48,8 +49,6 @@ class Task[TResult]:
         self.started = True
         logger.info(
             "Set initial operation",
-            operation=self.awaiting_operation,
-            task_id=self.task_id,
         )
 
     def drive(self, value: IOCompletion | None) -> None:

@@ -124,7 +124,7 @@ class IOWorker:
 
         # Check for failures.
         cqe_result = completion_event.res
-        if cqe_result >= 0:
+        if not operation.is_error(completion_event):
             result = operation.extract(completion_event)
         else:
             error_code = -cqe_result

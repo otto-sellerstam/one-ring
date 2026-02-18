@@ -1,28 +1,28 @@
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
-from one_ring_loop.fileio import open_file
-from one_ring_loop.loop import Task, create_task, join, run
+from one_ring_loop.loop import create_task, join, run
+from one_ring_loop.timerio import sleep
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
-def my_coro(path: str) -> Coro[str]:
-    """Test coro for event loop."""
-    yield from open_file(path)
-    return "hello"
+def entry() -> Coro:
+    sleep1 = create_task(sleep(1))
+    sleep2 = create_task(sleep(1))
 
+    start_time = time.monotonic()
+    yield from join(sleep1)
+    yield from join(sleep2)
 
-def entry() -> Coro[None]:
-    """Test entrypoint."""
-    task: Task[str] = create_task(my_coro("./tmp/hello.txt"))
-    create_task(my_coro("./tmp/world.txt"))
-
-    test = yield from join(task)
-    assert test == "hello"
+    assert time.monotonic() - start_time < 2
 
 
 def test_tasks() -> None:
     run(entry())
+
+
+test_tasks()

@@ -17,6 +17,7 @@ from liburing import (  # Automatically set to typing.Any by config.
     io_uring_prep_close,
     io_uring_prep_openat,
     io_uring_prep_read,
+    io_uring_prep_timeout,
     io_uring_prep_write,
     io_uring_queue_exit,
     io_uring_queue_init,
@@ -32,7 +33,7 @@ logger = get_logger(__name__)
 
 
 class SubmissionQueueEntry:
-    """Docstring."""
+    """Wrapper around liburing's SQE."""
 
     def __init__(self, sqe: Any, user_data: WorkerOperationID) -> None:  # noqa: ANN401
         self._sqe = sqe
@@ -40,20 +41,24 @@ class SubmissionQueueEntry:
         io_uring_sqe_set_data64(self._sqe, user_data)
 
     def prep_openat(self, path: bytes, flags: int, mode: int, dir_fd: int) -> None:
-        """Docstring."""
+        """Preps SQE for opening file."""
         io_uring_prep_openat(self._sqe, path, flags, mode, dir_fd)
 
     def prep_read(self, fd: int, iov: MutableIOVec, offset: int) -> None:
-        """Docstring."""
+        """Preps SQE for reading from file."""
         io_uring_prep_read(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_write(self, fd: int, iov: IOVec, offset: int) -> None:
-        """Docstring."""
+        """Preps SQE for writing to file."""
         io_uring_prep_write(self._sqe, fd, iov.iov_base, iov.iov_len, offset)
 
     def prep_close(self, fd: int) -> None:
-        """Docstring."""
+        """Preps SQE for closing file."""
         io_uring_prep_close(self._sqe, fd)
+
+    def prep_timeout(self, ts: Any, count: int = 0, flags: int = 0) -> None:  # noqa: ANN401
+        """Prepares SQE for timeout (used for async sleep)."""
+        io_uring_prep_timeout(self._sqe, ts, count, flags)
 
 
 class BaseIOVec:

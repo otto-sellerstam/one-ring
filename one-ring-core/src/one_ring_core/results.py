@@ -72,3 +72,12 @@ class FileWriteResult(IOResult):
 @dataclass(frozen=True)
 class FileCloseResult(IOResult):
     """Result of a file close operation."""
+
+    success: bool
+
+
+@dataclass(frozen=True)
+class SleepResult(IOResult):
+    """Result of sleeping."""
+
+    success: bool
