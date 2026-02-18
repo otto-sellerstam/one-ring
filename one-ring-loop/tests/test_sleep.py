@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 
 def entry() -> Coro:
-    yield from sleep(1)
+    success = yield from sleep(1)
+    assert success
 
 
 def test_fileio() -> None:

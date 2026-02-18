@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from one_ring_core.log import get_logger
-from one_ring_loop.typedefs import NotDone
+from one_ring_loop.typedefs import NotDone, WaitsOn
 
 if TYPE_CHECKING:
     from one_ring_core.operations import IOOperation
     from one_ring_core.results import IOCompletion
-    from one_ring_loop.typedefs import Coro, TaskID, WaitsOn
+    from one_ring_loop.typedefs import Coro, TaskID
 
 logger = get_logger(__name__)
 
@@ -74,3 +74,19 @@ class Task[TResult]:
             raise RuntimeError("Task result access before task was finished")  # noqa: TRY004
 
         return self._result
+
+    def wait(self) -> Coro[TResult]:
+        """Waits on a Task, so that another Task can yield from it."""
+        yield from _wait_on(self)
+        return self.result
+
+
+def _wait_on(*tasks: Task) -> Coro[None]:
+    """Yield until all given tasks are done.
+
+    Args:
+        tasks: the tasks for which we want to wait for
+    """
+    while not all(task.done for task in tasks):
+        unfinished = tuple(task.task_id for task in tasks if not task.done)
+        yield WaitsOn(unfinished)

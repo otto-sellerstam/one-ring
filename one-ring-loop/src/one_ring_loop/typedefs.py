@@ -22,7 +22,7 @@ class NotDone:
 class WaitsOn:
     """Sentinel for dependency relationships between tasks."""
 
-    task_id: int
+    task_ids: tuple[TaskID, ...]
 
 
 type TaskID = WorkerOperationID

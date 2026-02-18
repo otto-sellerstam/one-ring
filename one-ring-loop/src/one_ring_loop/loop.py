@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from one_ring_core.log import get_logger
 from one_ring_core.operations import IOOperation
 from one_ring_core.worker import IOWorker
-from one_ring_loop.task import Task
+from one_ring_loop.task import Task, _wait_on
 from one_ring_loop.typedefs import WaitsOn
 
 if TYPE_CHECKING:
@@ -64,8 +64,9 @@ class Loop:
                     worker.register(task.awaiting_operation, task.task_id)
                     logger.info("Registered task", task_id=task.task_id)
                     task.waiting = True
-                case WaitsOn(task_id=task_id):
-                    self.task_dependencies[task_id].add(task.task_id)
+                case WaitsOn(task_ids=task_ids):
+                    for task_id in task_ids:
+                        self.task_dependencies[task_id].add(task.task_id)
                     task.waiting = True
 
         if tasks_to_register:
@@ -143,12 +144,58 @@ def run(gen: Coro) -> None:
     _loop.run()
 
 
-def join[T](task: Task[T]) -> Coro[T]:
+# Yes, this is stupid. But Python doesn't have "Map" for VarTypeTyple yet.
+# This is what asyncio does for gather.
+
+
+@overload
+def gather[T1](task1: Task[T1], /) -> Coro[tuple[T1]]: ...
+
+
+@overload
+def gather[T1, T2](task1: Task[T1], task2: Task[T2], /) -> Coro[tuple[T1, T2]]: ...
+
+
+@overload
+def gather[T1, T2, T3](
+    task1: Task[T1], task2: Task[T2], task3: Task[T3], /
+) -> Coro[tuple[T1, T2, T3]]: ...
+
+
+@overload
+def gather[T1, T2, T3, T4](
+    task1: Task[T1], task2: Task[T2], task3: Task[T3], task4: Task[T4], /
+) -> Coro[tuple[T1, T2, T3, T4]]: ...
+
+
+@overload
+def gather[T1, T2, T3, T4, T5](
+    task1: Task[T1],
+    task2: Task[T2],
+    task3: Task[T3],
+    task4: Task[T4],
+    task5: Task[T5],
+    /,
+) -> Coro[tuple[T1, T2, T3, T4, T5]]: ...
+
+
+@overload
+def gather[T1, T2, T3, T4, T5, T6](
+    task1: Task[T1],
+    task2: Task[T2],
+    task3: Task[T3],
+    task4: Task[T4],
+    task5: Task[T5],
+    task6: Task[T6],
+    /,
+) -> Coro[tuple[T1, T2, T3, T4, T5, T6]]: ...
+
+
+def gather[T](*tasks: Task[T]) -> Coro[tuple[T, ...]]:
     """Wrapper to await tasks.
 
     Args:
-        task: the task you want to yield from (await)
+        tasks: the task you want to yield from (await)
     """
-    if not task.done:
-        yield WaitsOn(task.task_id)
-    return task.result
+    yield from _wait_on(*tasks)
+    return tuple(task.result for task in tasks)
