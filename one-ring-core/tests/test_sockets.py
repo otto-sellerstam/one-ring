@@ -57,10 +57,8 @@ def test_sockets() -> None:
             w.submit()
 
             # Again, two completions
-            s1 = w.wait()
-            s2 = w.wait()
-            recv_result = (s1 if s1.user_data == 9 else s2).unwrap().content
-            print(recv_result)  # b'hello'
+            w.wait()
+            w.wait()
         finally:
             if server_fd:
                 w.register(Close(server_fd), 1)

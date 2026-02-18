@@ -29,8 +29,6 @@ from liburing import (  # Automatically set to typing.Any by config.
     io_uring_sqe_set_data64,
     io_uring_submit,
     io_uring_wait_cqe,
-    iovec,
-    sockaddr,
 )
 
 from one_ring_core.log import get_logger
@@ -39,6 +37,8 @@ if TYPE_CHECKING:
     import array
     from types import TracebackType
 
+    from one_ring_core.file import IOVec, MutableIOVec
+    from one_ring_core.socket import SocketAddress
     from one_ring_core.typedefs import WorkerOperationID
 
 logger = get_logger(__name__)
@@ -142,15 +142,15 @@ class SubmissionQueueEntry:
     def prep_socket_bind(
         self,
         fd: int,
-        addr: sockaddr,
+        addr: SocketAddress,
     ) -> None:
         """Assign address and port to the socket.
 
         Args:
             fd: socket file descriptor
-            addr: a sockaddr object
+            addr: the socket address
         """
-        io_uring_prep_bind(self._sqe, fd, addr)
+        io_uring_prep_bind(self._sqe, fd, addr.get_sockaddr())
 
     def prep_socket_listen(
         self,
@@ -166,16 +166,18 @@ class SubmissionQueueEntry:
         io_uring_prep_listen(self._sqe, fd, backlog)
 
     def prep_socket_accept(
-        self, fd: int, addr: sockaddr = None, flags: int = 0
+        self, fd: int, addr: SocketAddress | None = None, flags: int = 0
     ) -> None:
         """Waits for a client to accept.
 
         Args:
             fd: socket file descriptor
-            addr: a sockaddr to fill with the client's address info (their IP and port)
+            addr: a the socket address to fill with the client's address info (their IP
+                and port)
             flags: extra socket flags
         """
-        io_uring_prep_accept(self._sqe, fd, addr, flags)
+        _addr = addr.get_sockaddr() if addr is not None else None
+        io_uring_prep_accept(self._sqe, fd, _addr, flags)
 
     def prep_socket_recv(self, fd: int, buf: bytearray, flags: int = 0) -> None:
         """Reads data from a connected socket.
@@ -199,49 +201,19 @@ class SubmissionQueueEntry:
         """
         io_uring_prep_send(self._sqe, fd, buf, len(buf), flags)
 
-    def prep_connect(self, fd: int, addr: sockaddr) -> None:
+    def prep_connect(self, fd: int, addr: SocketAddress) -> None:
         """Prepares to connect to a socket.
 
         Args:
             fd: the file descriptor of the socket
             addr: the address of the socket
         """
-        io_uring_prep_connect(self._sqe, fd, addr)
-
-
-class BaseIOVec:
-    """Docstring."""
-
-    _iov: iovec
-
-    @property
-    def iov_base(self) -> bytes:
-        """Docstring."""
-        return self._iov.iov_base
-
-    @property
-    def iov_len(self) -> int:
-        """Docstring."""
-        return self._iov.iov_len
-
-
-class IOVec(BaseIOVec):
-    """Docstring."""
-
-    def __init__(self, data: bytes) -> None:
-        self._iov = iovec(data)  # pyrefly: ignore
-
-
-class MutableIOVec(BaseIOVec):
-    """Docstring."""
-
-    def __init__(self, data: bytearray) -> None:
-        self._iov = iovec(data)  # pyrefly: ignore
+        io_uring_prep_connect(self._sqe, fd, addr.get_sockaddr())
 
 
 @dataclass
 class CompletionEvent:
-    """Docstring."""
+    """Wrapper around CQEs emitted by the ring."""
 
     user_data: WorkerOperationID
     res: int

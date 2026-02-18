@@ -35,7 +35,6 @@ class IOWorker:
         operation.prep(self._get_sqe(identifier))
 
         self._add_submission(identifier, operation)
-        logger.info("Registered IO operation", operation=operation)
         return identifier
 
     def _get_user_data(self) -> WorkerOperationID:

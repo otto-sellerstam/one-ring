@@ -19,13 +19,11 @@ from liburing import (  # Automatically set to typing.Any by config.
     O_WRONLY,
     SO_REUSEADDR,
     SOL_SOCKET,
-    SocketFamily,
     SocketType,
-    sockaddr,
     timespec,
 )
 
-from one_ring_core._ring import IOVec, MutableIOVec
+from one_ring_core.file import IOVec, MutableIOVec
 from one_ring_core.log import get_logger
 from one_ring_core.results import (
     CloseResult,
@@ -42,6 +40,7 @@ from one_ring_core.results import (
     SocketSendResult,
     SocketSetOptResult,
 )
+from one_ring_core.socket import AddressFamily, SocketAddress, SocketFamily
 
 if TYPE_CHECKING:
     from one_ring_core._ring import CompletionEvent, SubmissionQueueEntry
@@ -50,6 +49,10 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+# Socket io_uring bindings only work for WSL version >= 6.7.
+major, minor = (int(x) for x in os.uname().release.split(".")[:2])
+SUPPORTS_URING_BIND = (major, minor) >= (6, 7)
 
 
 class IOOperation(ABC):
@@ -252,20 +255,24 @@ class SocketSetOpt(IOOperation):
     """Docstring"""
     val: array.array = field(default_factory=lambda: array.array("i", [1]))
 
+    """Sync socket results"""
     _sync_result: int | None = field(init=False, default=None)
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.setsockopt(self.level, self.optname, self.val)
-            self._sync_result = 0
-        except OSError as e:
-            self._sync_result = None if e.errno is None else -e.errno
-        finally:
-            sock.close()
+        if SUPPORTS_URING_BIND:
+            sqe.prep_setsocketopt(self.fd, self.val, self.level, self.optname)
+        else:
+            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.setsockopt(self.level, self.optname, self.val)
+                self._sync_result = 0
+            except OSError as e:
+                self._sync_result = None if e.errno is None else -e.errno
+            finally:
+                sock.close()
 
-        sqe.prep_nop()
+            sqe.prep_nop()
         return sqe.user_data
 
     @override
@@ -274,7 +281,7 @@ class SocketSetOpt(IOOperation):
         return SocketSetOptResult()
 
     @override
-    def is_error(self, completion_event) -> bool:
+    def is_error(self, completion_event: CompletionEvent) -> bool:
         return self._sync_result is None or self._sync_result < 0
 
 
@@ -291,24 +298,32 @@ class SocketBind(IOOperation):
     """The port to assign"""
     port: int
 
+    _sockaddr: SocketAddress = field(init=False)
+
+    """Address family"""
+    address_family: AddressFamily = AddressFamily.AF_INET
+
     _sync_result: int | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        """Initializes socket address attribute."""
+        self._sockaddr = SocketAddress(self.address_family, self.ip, self.port)
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind((self.ip.decode(), self.port))
-            self._sync_result = 0
-        except OSError as e:
-            self._sync_result = None if e.errno is None else -e.errno
-            print("Bind errored out with")
-            print(e)
-            print(e.errno)
-            print("Set sync result to", self._sync_result)
-        finally:
-            sock.close()
+        if SUPPORTS_URING_BIND:
+            sqe.prep_socket_bind(self.fd, self._sockaddr)
+        else:
+            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.bind((self.ip.decode(), self.port))
+                self._sync_result = 0
+            except OSError as e:
+                self._sync_result = None if e.errno is None else -e.errno
+            finally:
+                sock.close()
 
-        sqe.prep_nop()
+            sqe.prep_nop()
         return sqe.user_data
 
     @override
@@ -317,7 +332,7 @@ class SocketBind(IOOperation):
         return SocketBindResult()
 
     @override
-    def is_error(self, completion_event) -> bool:
+    def is_error(self, completion_event: CompletionEvent) -> bool:
         return self._sync_result is None or self._sync_result < 0
 
 
@@ -335,14 +350,17 @@ class SocketListen(IOOperation):
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.listen(self.backlog)
-            self._sync_result = 0
-        except OSError as e:
-            self._sync_result = None if e.errno is None else -e.errno
-        finally:
-            sock.close()
+        if SUPPORTS_URING_BIND:
+            sqe.prep_socket_listen(self.fd, self.backlog)
+        else:
+            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.listen(self.backlog)
+                self._sync_result = 0
+            except OSError as e:
+                self._sync_result = None if e.errno is None else -e.errno
+            finally:
+                sock.close()
 
         sqe.prep_nop()
         return sqe.user_data
@@ -353,7 +371,7 @@ class SocketListen(IOOperation):
         return SocketListenResult()
 
     @override
-    def is_error(self, completion_event) -> bool:
+    def is_error(self, completion_event: CompletionEvent) -> bool:
         return self._sync_result is None or self._sync_result < 0
 
 
@@ -389,10 +407,13 @@ class SocketRecv(IOOperation):
     """Buffer to be filled with contents from read operation"""
     _buffer: bytearray = field(init=False, repr=False)
 
+    def __post_init__(self) -> None:
+        """Initializes buffer."""
+        self._buffer = bytearray(self.size)
+
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
         """Docstring."""
-        self._buffer = bytearray(self.size)
         sqe.prep_socket_recv(self.fd, self._buffer)
         return sqe.user_data
 
@@ -440,12 +461,18 @@ class SocketConnect(IOOperation):
     """The port to connect to"""
     port: int
 
-    _sockaddr: Any = field(init=False)
+    """The address family"""
+    address_family: AddressFamily = AddressFamily.AF_INET
+
+    _sockaddr: SocketAddress = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Initializes socket family attribute."""
+        self._sockaddr = SocketAddress(self.address_family, self.ip, self.port)
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
         """Docstring."""
-        self._sockaddr = sockaddr(SocketFamily.AF_INET, self.ip, self.port)
         sqe.prep_connect(self.fd, self._sockaddr)
         return sqe.user_data
 
