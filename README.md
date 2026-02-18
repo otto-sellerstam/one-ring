@@ -12,7 +12,7 @@ A toy project, building a truly async file IO using io_uring. Used for building 
 ## Setup
 
 ```bash
-# Install uv if you haven't already
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install just (task runner)
