@@ -40,11 +40,12 @@ class Task[TResult]:
     """For the task to know where it lives."""
     task_group: TaskGroup | None = field(repr=False)
 
+    # TODO: Below attributes four could be made an enum to make invalid states
+    # unrepresentable, but would also come at the cost of verbose pattern matching.
+
     """If the task is currently waiting on the kernel to finish IO."""
     waiting: bool = field(default=False, init=False)
 
-    # Below three attributes could be made an enum to make invalid states
-    # unrepresentable, but would also come at the cost of verbose pattern matching.
     """The current IO operation that is performed."""
     awaiting_operation: IOOperation | WaitsOn | None = field(default=None, init=False)
 

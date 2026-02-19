@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class Loop:
-    """The event loop."""
+    """The one-ring-loop. Bask in it's glory."""
 
     """The tasks currently running."""
     tasks: dict[TaskID, Task] = field(default_factory=dict, init=False)
