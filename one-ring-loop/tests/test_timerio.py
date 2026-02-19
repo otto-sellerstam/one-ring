@@ -9,12 +9,8 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
-def entry() -> Coro:
-    yield from sleep(1)
+def test_sleep() -> None:
+    def entry() -> Coro:
+        yield from sleep(1)
 
-
-def test_fileio() -> None:
     run(entry())
-
-
-test_fileio()

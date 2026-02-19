@@ -59,6 +59,3 @@ def entry() -> Coro:
 
 def test_socketio() -> None:
     run(entry())
-
-
-test_socketio()

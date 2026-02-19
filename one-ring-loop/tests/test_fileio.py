@@ -33,6 +33,3 @@ def entry() -> Coro:
 
 def test_fileio() -> None:
     run(entry())
-
-
-test_fileio()

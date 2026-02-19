@@ -72,6 +72,3 @@ def test_sockets() -> None:
                 w.register(Close(accepted_fd), 3)
                 w.submit()
                 w.wait()
-
-
-test_sockets()

@@ -1,23 +1,22 @@
 from __future__ import annotations
 
+import threading
+from collections import deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from one_ring_core.results import IOResult
 
 if TYPE_CHECKING:
     from one_ring_core.operations import IOOperation
+    from one_ring_loop.loop import Loop
     from one_ring_loop.typedefs import Coro, TaskID
-
-
-next_operation_id = 1  # Needs to start at 1.
 
 
 def _get_new_operation_id() -> TaskID:
     """Gets an unused ID to submit to the IO worker."""
-    global next_operation_id  # noqa:  PLW0603
-
-    ret = next_operation_id
-    next_operation_id += 1
+    ret = _local.free_operation_id
+    _local.free_operation_id += 1
 
     return ret
 
@@ -28,5 +27,32 @@ def _execute[T: IOResult](op: IOOperation[T]) -> Coro[T]:
     completion = yield op
     if completion is not None and isinstance(result := completion.unwrap(), expected):
         return result
-    msg = f"Expected {expected.__name__}, got {type(completion)}"
+    elif completion is None:
+        raise RuntimeError("Low level coroutine was sent None")
+
+    msg = f"Expected {expected.__name__}, got {type(completion)}. Expected {expected}"
     raise TypeError(msg)
+
+
+@dataclass
+class _Local(threading.local):
+    """Wrapper around threading.local for proper type annotations."""
+
+    loop: Loop | None = None
+    free_operation_id: int = 1
+    cancel_queue: deque[TaskID] = field(default_factory=deque)
+
+    def cleanup(self) -> None:
+        """Resets all attributes."""
+        self.loop = None
+        self.free_operation_id = 1
+        self.cancel_queue = deque()
+
+
+_local = _Local()
+
+__all__ = [
+    "_execute",
+    "_get_new_operation_id",
+    "_local",
+]

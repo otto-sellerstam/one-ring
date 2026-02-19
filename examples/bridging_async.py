@@ -75,4 +75,5 @@ async def entry() -> None:
     print(f"time2: {time2}")
 
 
-run(entry())
+if __name__ == "__main__":
+    run(entry())

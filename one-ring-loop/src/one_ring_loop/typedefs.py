@@ -10,7 +10,7 @@ from one_ring_core.typedefs import WorkerOperationID
 
 
 class NotDone:
-    """Sentinal for unfinished Task."""
+    """Sentinel for unfinished Task."""
 
     @override
     def __repr__(self) -> str:

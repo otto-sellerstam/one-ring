@@ -76,7 +76,7 @@ class IOWorker:
         number_submitted = self._ring.submit()
         logger.info("Submitted SQEs", sqe_number=number_submitted)
 
-    def wait(self) -> IOCompletion:
+    def wait(self) -> IOCompletion[IOResult]:
         """Blocking check if a completion event is available.
 
         Returns:
@@ -85,7 +85,7 @@ class IOWorker:
         completion_event = self._ring.wait()
         return self._transform_completion_event(completion_event)
 
-    def peek(self) -> IOCompletion | None:
+    def peek(self) -> IOCompletion[IOResult] | None:
         """Nonblocking check if a completion event is available.
 
         Returns:

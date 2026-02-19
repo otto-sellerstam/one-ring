@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 # TODO: Clean up
 # Better names
-# Centralize "close" together file fileio
+# Centralize "close" together with fileio
 
 
 def _create() -> Coro[int]:
@@ -66,7 +66,7 @@ def connect(host: bytes, port: int) -> Coro[Connection]:
 
 @dataclass
 class Server:
-    """User by server to accept new connections."""
+    """Used to accept new connections."""
 
     """The socket's file descriptor"""
     fd: int

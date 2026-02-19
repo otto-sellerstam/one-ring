@@ -27,14 +27,12 @@ def echo_server() -> Coro[None]:
     tg = TaskGroup()
     tg.enter()
     try:
-        try:
-            while True:
-                conn = yield from server.accept()
-                tg.create_task(echo_handler(conn))
-        finally:
-            yield from server.close()
+        while True:
+            conn = yield from server.accept()
+            tg.create_task(echo_handler(conn))
     finally:
         yield from tg.exit()
+        yield from server.close()
 
 
 if __name__ == "__main__":

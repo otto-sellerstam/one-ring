@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, overload
 
 from one_ring_core.log import get_logger
 from one_ring_loop._utils import _get_new_operation_id
 from one_ring_loop.cancellation import CancelScope
-from one_ring_loop.loop import _loop, current_task
+from one_ring_loop.exceptions import Cancelled
+from one_ring_loop.loop import get_running_loop
 from one_ring_loop.typedefs import NotDone, WaitsOn
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from one_ring_core.operations import IOOperation
     from one_ring_core.results import IOCompletion
     from one_ring_loop.typedefs import Coro, TaskID
@@ -39,7 +43,8 @@ class Task[TResult]:
     """If the task is currently waiting on the kernel to finish IO."""
     waiting: bool = field(default=False, init=False)
 
-    # TODO: Make enum?
+    # Below three attributes could be made an enum to make invalid states
+    # unrepresentable, but would also come at the cost of verbose pattern matching.
     """The current IO operation that is performed."""
     awaiting_operation: IOOperation | WaitsOn | None = field(default=None, init=False)
 
@@ -55,35 +60,23 @@ class Task[TResult]:
             msg = f"Task with task_id {self.task_id} already running"
             raise RuntimeError(msg)
 
-        self.awaiting_operation = self.gen.send(None)
+        self.drive(None)
         self.started = True
-        logger.info(
-            "Set initial operation",
-        )
 
     def drive(self, value: IOCompletion | None) -> None:
         """Drives the attached generator coroutine forwards."""
         self.waiting = False
-        try:
+        with self._handle_drive_exc():
             if value is None:
                 self.awaiting_operation = self.gen.send(None)
             else:
                 self.awaiting_operation = self.gen.send(value)
-        except StopIteration as e:
-            self._result = e.value
 
     def throw(self, exc: BaseException) -> None:
         """Throws an exception into the task's generator."""
         self.waiting = False
-        try:
+        with self._handle_drive_exc():
             self.awaiting_operation = self.gen.throw(exc)
-        except StopIteration as e:
-            logger.info(
-                "Exception thrown into task generator, but generator is finished",
-                task_id=self.task_id,
-                exception=type(exc).__name__,
-            )
-            self._result = e.value
 
     @property
     def done(self) -> bool:
@@ -127,13 +120,26 @@ class Task[TResult]:
         """Sets the result of the task to an exception."""
         self._result = exc
 
+    @contextmanager
+    def _handle_drive_exc(self) -> Generator[None]:
+        try:
+            yield
+        except StopIteration as e:
+            self._result = e.value
+        except BaseException as e:
+            self.set_error(e)
+            if self.task_group is not None:
+                self.task_group.set_error(e)
+            else:
+                raise
+
 
 @dataclass
 class TaskGroup:
-    """Trio style nursery."""
+    """Trio style nursery.
 
-    """First error produced by any child."""
-    _first_error: BaseException | None = field(default=None, init=False)
+    Lots of boiler-plate due to not being compatible with CM protocol.
+    """
 
     """Holds the IDs of all the tasks within the group."""
     tasks: list[Task] = field(default_factory=list, init=False)
@@ -141,39 +147,47 @@ class TaskGroup:
     """Common cancel scope for all tasks in the group."""
     cancel_scope: CancelScope = field(default_factory=CancelScope, init=False)
 
+    """List of errors produced by children."""
+    _errors: list[BaseException] = field(default_factory=list, init=False)
+
     def create_task(self, gen: Coro) -> None:
         """Creates a task managed by the task group."""
-        task = _create_standalone_task(gen, current_task().cancel_scopes, self)
+        task = _create_standalone_task(
+            gen, get_running_loop().current_task.cancel_scopes, self
+        )
         for cancel_scope in task.cancel_scopes:
             cancel_scope.add_task(task.task_id)
         self.tasks.append(task)
 
     def enter(self) -> None:
         """Nop enter."""
-        current_task().enter_cancel_scope(self.cancel_scope)
+        get_running_loop().current_task.enter_cancel_scope(self.cancel_scope)
 
     def exit(
         self,
     ) -> Coro[None]:
         """If an exception occurred, cancel all tasks."""
-        cancel_scope = current_task().exit_cancel_scope()
+        cancel_scope = get_running_loop().current_task.exit_cancel_scope()
         if not all(task.done for task in self.tasks):
             cancel_scope.cancel()
         yield from self.wait()
 
-        if self._first_error is not None:
-            raise self._first_error from None
+        if self._errors:
+            raise BaseExceptionGroup(
+                "unhandled errors in TaskGroup", self._errors
+            ) from None
 
     def wait(self) -> Coro[None]:
         """Waits for all children to finish."""
         yield from wait_on(*self.tasks)
 
     def set_error(self, exc: BaseException) -> None:
-        """Tells the task group that an error occured."""
-        if self._first_error is not None:
+        """Tells the task group that an error occurred."""
+        # Skip cancelled errors if cancellation was caused by the group itself.
+        if self._errors and isinstance(exc, Cancelled):
             return
 
-        self._first_error = exc
+        self._errors.append(exc)
         self.cancel_scope.cancel()
 
 
@@ -202,7 +216,7 @@ def _create_standalone_task[T](
         task_group: the task group to which the task belongs to
     """
     task: Task[T] = Task(gen, _get_new_operation_id(), deque(cancel_scopes), task_group)
-    _loop.add_task(task)
+    get_running_loop().add_task(task)
     return task
 
 
