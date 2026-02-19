@@ -6,7 +6,20 @@ from one_ring_core.results import IOResult
 
 if TYPE_CHECKING:
     from one_ring_core.operations import IOOperation
-    from one_ring_loop.typedefs import Coro
+    from one_ring_loop.typedefs import Coro, TaskID
+
+
+next_operation_id = 1  # Needs to start at 1.
+
+
+def _get_new_operation_id() -> TaskID:
+    """Gets an unused ID to submit to the IO worker."""
+    global next_operation_id  # noqa:  PLW0603
+
+    ret = next_operation_id
+    next_operation_id += 1
+
+    return ret
 
 
 def _execute[T: IOResult](op: IOOperation[T]) -> Coro[T]:

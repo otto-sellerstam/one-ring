@@ -5,7 +5,7 @@ Generator based async I/O from scratch using Linux's `io_uring`, a custom event 
 ## Packages
 
 - **one-ring-core** — Low-level `io_uring` wrapper: ring management, IO operations, and result types
-- **one-ring-loop** — Custom event loop with task scheduling, file I/O, socket I/O, and timers
+- **one-ring-loop** — Custom event loop with task scheduling, file I/O, socket I/O, and timers. Opinionated API regarding structurred concurrency.
 - **one-ring-asyncio** — asyncio event loop integration (WIP)
 
 ## Example
@@ -17,7 +17,7 @@ Run it and connect via `ncat`!
 ```python
 from typing import TYPE_CHECKING
 
-from one_ring_loop.loop import create_task, run
+from one_ring_loop import TaskGroup, run
 from one_ring_loop.socketio import Connection, create_server
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ def echo_handler(conn: Connection) -> Coro[None]:
             data = yield from conn.recv(1024)
             if not data:
                 break
-            yield from conn.send(data)
+            yield from conn.send(b"Server echoes: " + data)
     finally:
         yield from conn.close()
 
@@ -39,12 +39,17 @@ def echo_handler(conn: Connection) -> Coro[None]:
 def echo_server() -> Coro[None]:
     """Echo server entrypoint."""
     server = yield from create_server(b"0.0.0.0", 9999)
+    tg = TaskGroup()
+    tg.enter()
     try:
-        while True:
-            conn = yield from server.accept()
-            create_task(echo_handler(conn))
+        try:
+            while True:
+                conn = yield from server.accept()
+                tg.create_task(echo_handler(conn))
+        finally:
+            yield from server.close()
     finally:
-        yield from server.close()
+        yield from tg.exit()
 
 
 if __name__ == "__main__":

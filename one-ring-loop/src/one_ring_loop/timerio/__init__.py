@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from one_ring_core.operations import Sleep
-from one_ring_loop._coro import _execute
+from one_ring_loop._utils import _execute
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro

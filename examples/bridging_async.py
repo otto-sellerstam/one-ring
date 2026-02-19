@@ -1,15 +1,22 @@
-"""This example shows how to bridge one_ring to use modern Python "await" syntax."""
+"""This example shows how to bridge one_ring to use modern Python "await" syntax.
+
+Note: the project applies a structurred approach similar to Trio. However, I have not
+yet taken the time to implement an async version of the TaskGroup, which kind of breaks
+this example...
+"""
 
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from one_ring_loop.loop import create_task, run
-from one_ring_loop.loop import gather as _gen_gather
+from one_ring_loop import run
+from one_ring_loop.task import _create_standalone_task
+from one_ring_loop.task import gather as _gen_gather
 from one_ring_loop.timerio import sleep as _gen_sleep
 
 if TYPE_CHECKING:
-    from one_ring_loop.task import Task
+    from one_ring_loop import Task
     from one_ring_loop.typedefs import Coro
 
 ### Define "await" compatible sleep ###
@@ -55,8 +62,11 @@ async def gather(*tasks: Task) -> tuple:
 async def entry() -> None:
     """Entry point for example."""
     start_time = time.monotonic()
-    task1 = create_task(sleep(1))
-    task2 = create_task(sleep(2))
+
+    # Creates task using private function. Internally, this function is only used
+    # by the "run" function, as well as task groups.
+    task1 = _create_standalone_task(sleep(1), deque(), None)
+    task2 = _create_standalone_task(sleep(2), deque(), None)
 
     time1, time2 = await gather(task1, task2)
 

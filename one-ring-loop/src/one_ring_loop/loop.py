@@ -1,32 +1,57 @@
 from __future__ import annotations
 
-from collections import defaultdict
+import errno
+from collections import defaultdict, deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 from one_ring_core.log import get_logger
-from one_ring_core.operations import IOOperation
+from one_ring_core.operations import Cancel, IOOperation
 from one_ring_core.worker import IOWorker
-from one_ring_loop.task import Task, _wait_on
+from one_ring_loop._utils import _get_new_operation_id
+from one_ring_loop.cancellation import cancel_queue
+from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.typedefs import WaitsOn
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from one_ring_core.results import IOCompletion
+    from one_ring_loop.task import Task
     from one_ring_loop.typedefs import Coro, TaskID
 
 logger = get_logger(__name__)
 
 
-def _get_new_task_id() -> TaskID:
-    """TODO: Optimize."""
-    task_id = 1
-    while task_id <= len(_loop.tasks):
-        if task_id not in _loop.tasks:
-            break
+_current_task: Task | None = None
 
-        task_id += 1
 
-    return task_id
+def _set_current_task(task: Task | None) -> None:
+    global _current_task  # noqa: PLW0603
+
+    _current_task = task
+
+
+def current_task() -> Task:
+    """Returns the Task currently driven by the event loop."""
+    if _current_task is None:
+        raise RuntimeError("No running tasks")
+
+    return _current_task
+
+
+@contextmanager
+def register_error(task: Task) -> Generator[None]:
+    """Utility function to register errors during drive/throw on a task."""
+    try:
+        yield
+    except BaseException as e:
+        task.set_error(e)
+        if task.task_group is not None:
+            task.task_group.set_error(e)
+        else:
+            raise
 
 
 @dataclass
@@ -45,20 +70,47 @@ class Loop:
         """Runs the event loop."""
         with IOWorker() as worker:
             while self.tasks:
+                self._handle_cancellations(worker)
                 self._start_tasks()
                 self._register_tasks(worker)
                 self._drive_completed_tasks(worker)
                 self._remove_done_tasks()
 
+    def _handle_cancellations(self, worker: IOWorker) -> None:
+        """Drains cancellation queue and registers and submits cancellations events."""
+        while cancel_queue:
+            task_id = cancel_queue.popleft()
+            if task_id not in self.tasks:
+                continue
+            task = self.tasks[task_id]
+            if isinstance(task.awaiting_operation, WaitsOn):
+                continue
+            if task.waiting:
+                cancel_operation = Cancel(task_id)
+                worker.register(cancel_operation, _get_new_operation_id())
+
+        worker.submit()
+
     def _start_tasks(self) -> None:
         """Starts unstarted tasks."""
         unstarted_tasks = [task for task in self.tasks.values() if not task.started]
         for task in unstarted_tasks:
+            _set_current_task(task)
             task.start()
+            _set_current_task(None)
 
     def _register_tasks(self, worker: IOWorker) -> None:
         tasks_to_register = [task for task in self.tasks.values() if not task.waiting]
         for task in tasks_to_register:
+            # The task is canceled, and the task has no current IO in progress.
+            if (
+                cancel_scope := task.current_cancel_scope()
+            ) is not None and cancel_scope.cancelled:
+                _set_current_task(task)
+                if not isinstance(task.awaiting_operation, WaitsOn):
+                    task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
+                _set_current_task(None)
+
             match task.awaiting_operation:
                 case IOOperation():
                     worker.register(task.awaiting_operation, task.task_id)
@@ -97,17 +149,38 @@ class Loop:
     def _drive_completed_tasks(self, worker: IOWorker) -> None:
         completions = self._get_completed_operations(worker)
         for completion in completions:
+            if completion.user_data not in self.tasks:
+                # At the moment, this means that it's a cancellation.
+                # TODO: Make more general and reliable.
+                continue
+
             # completion.user_data should be renamed.
             task = self.tasks[completion.user_data]
             logger.info("Driving task", task_id=task.task_id)
-            task.drive(completion)
+
+            _set_current_task(task)
+            if (
+                isinstance(oserror := completion.result, OSError)
+                and oserror.errno is not None
+                and oserror.errno == errno.ECANCELED
+            ):
+                with register_error(task):
+                    task.throw(Cancelled())
+            else:
+                with register_error(task):
+                    task.drive(completion)
+
+            _set_current_task(None)
 
     def _remove_done_tasks(self) -> None:
         done_tasks = [task for task in self.tasks.values() if task.done]
         for task in done_tasks:
             logger.info("Task finished", task_id=task.task_id)
             for waiting_task_id in self.task_dependencies[task.task_id]:
-                self.tasks[waiting_task_id].drive(None)
+                waiting_task = self.tasks[waiting_task_id]
+                _set_current_task(waiting_task)
+                waiting_task.drive(None)
+                _set_current_task(None)
 
         self.tasks = {
             task_id: task for task_id, task in self.tasks.items() if not task.done
@@ -121,17 +194,6 @@ class Loop:
 _loop = Loop()
 
 
-def create_task[T](gen: Coro[T]) -> Task[T]:
-    """Creates a task by adding it to the event loop.
-
-    Args:
-        gen: the coroutine for the Task to wrap
-    """
-    task: Task[T] = Task(gen, _get_new_task_id())
-    _loop.add_task(task)
-    return task
-
-
 def run(gen: Coro) -> None:
     """Entry point for running the event loop.
 
@@ -140,65 +202,7 @@ def run(gen: Coro) -> None:
     Args:
         gen: the entry coroutine
     """
-    create_task(gen)
+    from one_ring_loop.task import _create_standalone_task  # noqa: PLC0415
+
+    _create_standalone_task(gen, deque(), None)
     _loop.run()
-
-
-# Yes, this is stupid. But Python doesn't have "Map" for VarTypeTyple yet.
-# This is what asyncio does for gather.
-
-
-@overload
-def gather[T1](task1: Task[T1], /) -> Coro[tuple[T1]]: ...
-
-
-@overload
-def gather[T1, T2](task1: Task[T1], task2: Task[T2], /) -> Coro[tuple[T1, T2]]: ...
-
-
-@overload
-def gather[T1, T2, T3](
-    task1: Task[T1], task2: Task[T2], task3: Task[T3], /
-) -> Coro[tuple[T1, T2, T3]]: ...
-
-
-@overload
-def gather[T1, T2, T3, T4](
-    task1: Task[T1], task2: Task[T2], task3: Task[T3], task4: Task[T4], /
-) -> Coro[tuple[T1, T2, T3, T4]]: ...
-
-
-@overload
-def gather[T1, T2, T3, T4, T5](
-    task1: Task[T1],
-    task2: Task[T2],
-    task3: Task[T3],
-    task4: Task[T4],
-    task5: Task[T5],
-    /,
-) -> Coro[tuple[T1, T2, T3, T4, T5]]: ...
-
-
-@overload
-def gather[T1, T2, T3, T4, T5, T6](
-    task1: Task[T1],
-    task2: Task[T2],
-    task3: Task[T3],
-    task4: Task[T4],
-    task5: Task[T5],
-    task6: Task[T6],
-    /,
-) -> Coro[tuple[T1, T2, T3, T4, T5, T6]]: ...
-
-
-def gather[T](*tasks: Task[T]) -> Coro[tuple[T, ...]]:
-    """Wrapper to await multiple tasks.
-
-    Args:
-        tasks: the task you want to yield from (await)
-
-    Returns:
-        Final return value when yielded from will be a tuple of task results
-    """
-    yield from _wait_on(*tasks)
-    return tuple(task.result for task in tasks)
