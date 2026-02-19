@@ -26,6 +26,7 @@ from liburing import (  # Automatically set to typing.Any by config.
 from one_ring_core.file import IOVec, MutableIOVec
 from one_ring_core.log import get_logger
 from one_ring_core.results import (
+    CancelResult,
     CloseResult,
     FileOpenResult,
     FileReadResult,
@@ -71,6 +72,38 @@ class IOOperation[T: IOResult](ABC):
     def is_error(self, completion_event: CompletionEvent) -> bool:
         """Determines if the completion event is an error."""
         return completion_event.res < 0
+
+
+@dataclass
+class Cancel(IOOperation[CancelResult]):
+    """Cancels an in-flight operation."""
+
+    result_type = CancelResult
+
+    """The id of the operation to cancel the in-flight operation for"""
+    target_identifier: WorkerOperationID
+
+    """Flags for cancellation"""
+    flags: int = 0
+
+    @override
+    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+        """Prepares a submission queue entry for the SQ."""
+        sqe.prep_cancel(self.target_identifier, self.flags)
+        return sqe.user_data
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> CancelResult:
+        """Extract fields from a completion queue event and wrap in correct type."""
+        return CancelResult()
+
+    @override
+    def is_error(self, completion_event: CompletionEvent) -> bool:
+        """Determines if the completion event is an error."""
+        return completion_event.res < 0 and completion_event.res not in {
+            -errno.ENOENT,  # identifier not found
+            -errno.EALREADY,  # identifier already completing
+        }
 
 
 @dataclass

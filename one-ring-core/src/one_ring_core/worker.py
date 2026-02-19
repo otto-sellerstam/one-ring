@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Self
 
 from one_ring_core._ring import CompletionEvent, Ring, SubmissionQueueEntry
 from one_ring_core.log import get_logger
-from one_ring_core.results import IOCompletion
+from one_ring_core.results import IOCompletion, IOResult
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -115,11 +115,11 @@ class IOWorker:
     def _transform_completion_event(
         self,
         completion_event: CompletionEvent,
-    ) -> IOCompletion:
+    ) -> IOCompletion[IOResult]:
         """Fetches data from completion event and transforms to relevant type."""
         user_data = completion_event.user_data
         # Now we need to handle the CQE based on the operation type of the submission.
-        operation = self._pop_submission(user_data)
+        operation: IOOperation[IOResult] = self._pop_submission(user_data)
 
         # Check for failures.
         cqe_result = completion_event.res

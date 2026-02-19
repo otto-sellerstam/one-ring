@@ -12,6 +12,7 @@ from liburing import (  # Automatically set to typing.Any by config.
     io_uring_peek_cqe,
     io_uring_prep_accept,
     io_uring_prep_bind,
+    io_uring_prep_cancel64,
     io_uring_prep_close,
     io_uring_prep_connect,
     io_uring_prep_listen,
@@ -51,6 +52,9 @@ class SubmissionQueueEntry:
         self._sqe = sqe
         self.user_data: WorkerOperationID = user_data
         io_uring_sqe_set_data64(self._sqe, user_data)
+
+    def prep_cancel(self, target_user_data: WorkerOperationID, flags: int = 0) -> None:
+        io_uring_prep_cancel64(self._sqe, target_user_data, flags)
 
     def prep_openat(self, path: bytes, flags: int, mode: int, dir_fd: int) -> None:
         """Preps SQE for opening file.

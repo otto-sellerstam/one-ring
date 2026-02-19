@@ -28,6 +28,11 @@ class IOResult:
 
 
 @dataclass(frozen=True)
+class CancelResult(IOResult):
+    """Result of cancelling an in flight IO operation."""
+
+
+@dataclass(frozen=True)
 class FileOpenResult(IOResult):
     """Result of a file open operation."""
 
