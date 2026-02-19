@@ -45,7 +45,7 @@ class Task[TResult]:
             msg = f"Task with task_id {self.task_id} already running"
             raise RuntimeError(msg)
 
-        self.awaiting_operation = next(self.gen)
+        self.awaiting_operation = self.gen.send(None)
         self.started = True
         logger.info(
             "Set initial operation",
@@ -56,7 +56,7 @@ class Task[TResult]:
         self.waiting = False
         try:
             if value is None:
-                self.awaiting_operation = next(self.gen)
+                self.awaiting_operation = self.gen.send(None)
             else:
                 self.awaiting_operation = self.gen.send(value)
         except StopIteration as e:

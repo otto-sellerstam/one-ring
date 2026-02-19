@@ -1,3 +1,5 @@
+"""This example shows a simple echo server."""
+
 from typing import TYPE_CHECKING
 
 from one_ring_loop.loop import create_task, run
@@ -12,6 +14,7 @@ def echo_handler(conn: Connection) -> Coro[None]:
     try:
         while True:
             data = yield from conn.recv(1024)
+            data = b"Server says: " + data
             if not data:
                 break
             yield from conn.send(data)

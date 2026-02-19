@@ -96,7 +96,7 @@ ignore = [
     "ARG",     # unused arguments (fixtures)
     "FBT",     # booleans as positional args (test parametrize)
 ]
-"examples/*" = ["INP001"]
+"examples/*" = ["INP001", "T201"]
 
 
 [tool.ruff.lint.pydocstyle]
