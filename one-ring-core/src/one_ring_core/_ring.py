@@ -189,7 +189,6 @@ class SubmissionQueueEntry:
         Args:
             fd: socket file descriptor
             buf: a buffer to receive data into
-            size: how many bytes to read at most
             flags: extra flags
         """
         io_uring_prep_recv(self._sqe, fd, buf, len(buf), flags)
@@ -200,7 +199,6 @@ class SubmissionQueueEntry:
         Args:
             fd: socket file descriptor
             buf: data to send
-            size: how many bytes to send
             flags: extra flags
         """
         io_uring_prep_send(self._sqe, fd, buf, len(buf), flags)
