@@ -18,6 +18,21 @@ Don't call `wait_cqe`, but instead register the ring for eventfd, using
 io_uring_register_eventfd(ring: io_uring, fd: int) -> int
 ```
 
+## Implement flag wrappers
+
+The majority of all `liburing` calls take flags of different types. For both type safety, and utility, these flags should be wrapped in custom classes an exposed to be used by low level coroutines and the event loop. For example, `liburing.queue.io_uring_prep_cancel64` takes the following flags:
+
+```
+- IORING_ASYNC_CANCEL_ALL
+- IORING_ASYNC_CANCEL_ANY
+- IORING_ASYNC_CANCEL_FD
+- IORING_ASYNC_CANCEL_FD_FIXED
+- IORING_ASYNC_CANCEL_OP
+- IORING_ASYNC_CANCEL_USERDATA
+- IORING_OP_ASYNC_CANCEL
+- IORING_REGISTER_SYNC_CANCEL
+```
+
 ## Improve project directory structure
 
 Once more functionality has been added, structure the project for a clear separation of concerns and functionality from an API point of view.
