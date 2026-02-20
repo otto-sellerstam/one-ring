@@ -6,8 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, overload, override
 
 from one_ring_core.log import get_logger
-from one_ring_loop._utils import _get_new_operation_id
-from one_ring_loop.cancellation import CancelScope
+from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.lowlevel import get_current_task, get_running_loop
 from one_ring_loop.operations import Park, WaitsOn
@@ -32,6 +31,30 @@ class NotDone:
 
 
 _not_done = NotDone()
+
+
+@dataclass
+class CancelScope:
+    """Cancel scope, inspired by Trio."""
+
+    """Whether the cancel scope is cancelled or not"""
+    cancelled: bool = field(default=False, init=False)
+
+    """IDs of the tasks within the cancel scope."""
+    task_ids: set[TaskID] = field(default_factory=set, init=False)
+
+    def cancel(self) -> None:
+        """Cancels the cancel scope."""
+        self.cancelled = True
+        _local.cancel_queue.extend(self.task_ids)
+
+    def add_task(self, task_id: TaskID) -> None:
+        """Adds a task to the cancel scope."""
+        self.task_ids.add(task_id)
+
+    def remove_task(self, task_id: TaskID) -> None:
+        """Removes a task from the cancel scope."""
+        self.task_ids.remove(task_id)
 
 
 @dataclass
@@ -122,10 +145,10 @@ class Task[TResult]:
         cancel_scope.remove_task(self.task_id)
         return cancel_scope
 
-    def current_cancel_scope(self) -> CancelScope | None:
+    def current_cancel_scope(self) -> CancelScope:
         """Gets the lowest level nested cancel scope."""
         if not self.cancel_scopes:
-            return None
+            raise RuntimeError("Task created without cancel scope")
 
         return self.cancel_scopes[-1]
 
@@ -214,7 +237,7 @@ def wait_on(*tasks: Task) -> Coro[None]:
 
 
 def _create_standalone_task[T](
-    gen: Coro[T], cancel_scopes: deque[CancelScope], task_group: TaskGroup | None
+    gen: Coro[T], cancel_scopes: deque[CancelScope] | None, task_group: TaskGroup | None
 ) -> Task[T]:
     """Creates a task by adding it to the event loop.
 
@@ -226,7 +249,15 @@ def _create_standalone_task[T](
         cancel_scopes: the cancel scopes relevant to the task
         task_group: the task group to which the task belongs to
     """
-    task: Task[T] = Task(gen, _get_new_operation_id(), deque(cancel_scopes), task_group)
+    task_id = _get_new_operation_id()
+    if cancel_scopes is None:
+        new_cancel_scope = CancelScope()
+        new_cancel_scope.add_task(task_id)
+        _cancel_scopes = deque([new_cancel_scope])
+    else:
+        _cancel_scopes = cancel_scopes
+
+    task: Task[T] = Task(gen, task_id, _cancel_scopes, task_group)
     get_running_loop().add_task(task)
     return task
 

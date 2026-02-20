@@ -21,7 +21,7 @@ def test_sockets() -> None:
         # Create socket
         w.register(SocketCreate(), 1)
         w.submit()
-        server_fd = w.wait().unwrap().fd
+        server_fd = w.wait().unwrap().fd  # pyrefly: ignore
 
         try:
             # Set reuse addr + bind + listen
@@ -38,7 +38,7 @@ def test_sockets() -> None:
             # === Client setup ===
             w.register(SocketCreate(), 5)
             w.submit()
-            client_fd = w.wait().unwrap().fd
+            client_fd = w.wait().unwrap().fd  # pyrefly: ignore
 
             # Accept client
             w.register(SocketAccept(server_fd), 6)
@@ -49,7 +49,9 @@ def test_sockets() -> None:
             c1 = w.wait()
             c2 = w.wait()
 
-            accepted_fd = (c1 if c1.user_data == 6 else c2).unwrap().fd
+            accepted_fd = (
+                (c1 if c1.user_data == 6 else c2).unwrap().fd  # pyrefly: ignore
+            )
 
             # === Echo: client sends, server receives ===
             w.register(SocketSend(client_fd, b"hello"), 8)

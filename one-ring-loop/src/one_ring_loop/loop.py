@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import errno
-from collections import defaultdict, deque
+from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -226,6 +226,6 @@ def run(gen: Coro) -> None:
     from one_ring_loop.task import _create_standalone_task  # noqa: PLC0415
 
     _local.loop = Loop()
-    _create_standalone_task(gen, deque(), None)
+    _create_standalone_task(gen, None, None)
     _local.loop.run_until_complete()
     _local.cleanup()

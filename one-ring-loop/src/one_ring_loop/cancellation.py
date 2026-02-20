@@ -1,36 +1,72 @@
-from __future__ import annotations
-
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from one_ring_loop._utils import _local
+from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.log import get_logger
+from one_ring_loop.lowlevel import get_current_task
+from one_ring_loop.task import CancelScope, _create_standalone_task
+from one_ring_loop.timerio import sleep
 
 if TYPE_CHECKING:
-    from one_ring_loop.typedefs import TaskID
+    from collections.abc import Generator
+
+    from one_ring_loop.typedefs import Coro
 
 logger = get_logger(__name__)
 
 
 @dataclass
-class CancelScope:
-    """Cancel scope, inspired by Trio."""
+class _FailAfter:
+    """Class based implementation of fail_after.
 
-    """Whether the cancel scope is cancelled or not"""
-    cancelled: bool = field(default=False, init=False)
+    Throws a Cancelled exception after timeout.
+    """
 
-    """IDs of the tasks within the cancel scope."""
-    task_ids: set[TaskID] = field(default_factory=set, init=False)
+    """The delay for the timeout."""
+    delay: float
 
-    def cancel(self) -> None:
-        """Cancels the cancel scope."""
-        self.cancelled = True
-        _local.cancel_queue.extend(self.task_ids)
+    """Internal time check."""
+    _finished: bool = field(default=False, init=False)
 
-    def add_task(self, task_id: TaskID) -> None:
-        """Adds a task to the cancel scope."""
-        self.task_ids.add(task_id)
+    def _cancellation_task(self, cancel_scope: CancelScope) -> Coro[None]:
+        """Background task that sleeps for delay.
 
-    def remove_task(self, task_id: TaskID) -> None:
-        """Removes a task from the cancel scope."""
-        self.task_ids.remove(task_id)
+        Cancels the cancel scope if not self._finished after sleep.
+        """
+        yield from sleep(self.delay)
+        if not self._finished:
+            cancel_scope.cancel()
+
+    def start(self) -> None:
+        """Starts a background task which checks for timeout."""
+        self._finished = False
+        cancel_scope = get_current_task().current_cancel_scope()
+
+        _create_standalone_task(self._cancellation_task(cancel_scope), None, None)
+
+    def end(self) -> None:
+        """Registers the timeout block as finished.
+
+        Note: this does not cancel the cancellation task, which is a potential resource
+        leak, but I don't think it should matter.
+        """
+        self._finished = True
+
+
+@contextmanager
+def fail_after(delay: float) -> Generator:
+    """Cancels cancel scope and throws Cancelled after delay."""
+    _fail_after = _FailAfter(delay=delay)
+    _fail_after.start()
+    try:
+        yield
+    finally:
+        _fail_after.end()
+
+
+@contextmanager
+def move_on_after(delay: float) -> Generator:
+    """Moves on after delay by catching Cancelled."""
+    with suppress(Cancelled), fail_after(delay):
+        yield
