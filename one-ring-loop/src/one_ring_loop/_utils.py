@@ -40,13 +40,18 @@ class _Local(threading.local):
 
     loop: Loop | None = None
     free_operation_id: int = 1
+
+    # TODO: Move the below two to be attributes on Loop.
     cancel_queue: deque[TaskID] = field(default_factory=deque)
+    unpark_queue: deque[TaskID] = field(default_factory=deque)
 
     def cleanup(self) -> None:
         """Resets all attributes."""
         self.loop = None
         self.free_operation_id = 1
+
         self.cancel_queue = deque()
+        self.unpark_queue = deque()
 
 
 _local = _Local()

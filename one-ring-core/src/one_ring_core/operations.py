@@ -233,7 +233,7 @@ class Sleep(IOOperation[SleepResult]):
     """File descriptor for the regular file."""
 
     result_type = SleepResult
-    time: int
+    time: float
     _timespec: Any = field(init=False, repr=False)
 
     @override

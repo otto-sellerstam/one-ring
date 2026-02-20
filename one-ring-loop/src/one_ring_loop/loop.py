@@ -11,7 +11,7 @@ from one_ring_core.operations import Cancel, IOOperation
 from one_ring_core.worker import IOWorker
 from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
-from one_ring_loop.typedefs import WaitsOn
+from one_ring_loop.operations import Park, WaitsOn
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 class Loop:
     """The one-ring-loop. Bask in it's glory."""
 
+    # TODO: See if there's a nice way to consolidate the below three attributes.
     """The tasks currently running."""
     tasks: dict[TaskID, Task] = field(default_factory=dict, init=False)
 
@@ -45,6 +46,7 @@ class Loop:
                 self._handle_cancellations(worker)
                 self._start_tasks()
                 self._register_tasks(worker)
+                self._drive_unparked_tasks()
                 self._drive_completed_tasks(worker)
                 self._remove_done_tasks()
 
@@ -82,12 +84,12 @@ class Loop:
             if not task.waiting and task.started and not task.done
         ]
         for task in tasks_to_register:
-            # The task is canceled, and the task has no current IO in progress.
             if (
                 (cancel_scope := task.current_cancel_scope()) is not None
                 and cancel_scope.cancelled
-                and not isinstance(task.awaiting_operation, WaitsOn)
+                and not isinstance(task.awaiting_operation, WaitsOn)  # TODO: Think.
             ):
+                # The task is canceled, and the task has no current IO in progress.
                 with self.set_current_task(task):
                     task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
 
@@ -99,11 +101,15 @@ class Loop:
                 case IOOperation():
                     worker.register(task.awaiting_operation, task.task_id)
                     logger.info("Registered task", task_id=task.task_id)
-                    task.waiting = True
                 case WaitsOn(task_ids=task_ids):
                     for task_id in task_ids:
                         self.task_dependencies[task_id].add(task.task_id)
-                    task.waiting = True
+                case Park():
+                    pass
+                case None:
+                    continue
+
+            task.waiting = True
 
         if tasks_to_register:
             worker.submit()
@@ -115,7 +121,8 @@ class Loop:
 
         if all(task.waiting for task in self.tasks.values()):
             if all(
-                isinstance(t.awaiting_operation, WaitsOn) for t in self.tasks.values()
+                isinstance(t.awaiting_operation, WaitsOn | Park)
+                for t in self.tasks.values()
             ):
                 raise RuntimeError(
                     "Deadlock: all tasks waiting on dependencies, no pending I/O"
@@ -151,6 +158,18 @@ class Loop:
                     task.throw(Cancelled())
                 else:
                     task.drive(completion)
+
+    def _drive_unparked_tasks(self) -> None:
+        """Drives tasks that have been unparked.
+
+        Needs to run before _drive_completed_tasks to avoid deadlocks.
+        """
+        while _local.unpark_queue:
+            unparked_task_id = _local.unpark_queue.popleft()
+            unparked_task = self.tasks[unparked_task_id]
+
+            with self.set_current_task(unparked_task):
+                unparked_task.drive(None)
 
     def _remove_done_tasks(self) -> None:
         done_tasks = [task for task in self.tasks.values() if task.done]
@@ -210,11 +229,3 @@ def run(gen: Coro) -> None:
     _create_standalone_task(gen, deque(), None)
     _local.loop.run_until_complete()
     _local.cleanup()
-
-
-def get_running_loop() -> Loop:
-    """Gets the currently running event loop."""
-    if _local.loop is None:
-        raise RuntimeError("No event loop running")
-
-    return _local.loop

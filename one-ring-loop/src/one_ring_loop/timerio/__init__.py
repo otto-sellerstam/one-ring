@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
-def sleep(time: int) -> Coro[None]:
+def sleep(time: float) -> Coro[None]:
     """Sleep coroutine."""
     yield from _execute(Sleep(time))
     return None

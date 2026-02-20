@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, overload, override
 
 from one_ring_core.log import get_logger
 from one_ring_loop._utils import _get_new_operation_id
 from one_ring_loop.cancellation import CancelScope
 from one_ring_loop.exceptions import Cancelled
-from one_ring_loop.loop import get_running_loop
-from one_ring_loop.typedefs import NotDone, WaitsOn
+from one_ring_loop.lowlevel import get_current_task, get_running_loop
+from one_ring_loop.operations import Park, WaitsOn
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -20,6 +20,16 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro, TaskID
 
 logger = get_logger(__name__)
+
+
+class NotDone:
+    """Sentinel for unfinished Task."""
+
+    @override
+    def __repr__(self) -> str:
+        """Pretty printing."""
+        return "NotDone"
+
 
 _not_done = NotDone()
 
@@ -47,7 +57,9 @@ class Task[TResult]:
     waiting: bool = field(default=False, init=False)
 
     """The current IO operation that is performed."""
-    awaiting_operation: IOOperation | WaitsOn | None = field(default=None, init=False)
+    awaiting_operation: IOOperation | WaitsOn | Park | None = field(
+        default=None, init=False
+    )
 
     """If the task has been started or not."""
     started: bool = field(default=False, init=False)
@@ -153,22 +165,20 @@ class TaskGroup:
 
     def create_task(self, gen: Coro) -> None:
         """Creates a task managed by the task group."""
-        task = _create_standalone_task(
-            gen, get_running_loop().current_task.cancel_scopes, self
-        )
+        task = _create_standalone_task(gen, get_current_task().cancel_scopes, self)
         for cancel_scope in task.cancel_scopes:
             cancel_scope.add_task(task.task_id)
         self.tasks.append(task)
 
     def enter(self) -> None:
         """Nop enter."""
-        get_running_loop().current_task.enter_cancel_scope(self.cancel_scope)
+        get_current_task().enter_cancel_scope(self.cancel_scope)
 
     def exit(
         self,
     ) -> Coro[None]:
         """If an exception occurred, cancel all tasks."""
-        cancel_scope = get_running_loop().current_task.exit_cancel_scope()
+        cancel_scope = get_current_task().exit_cancel_scope()
         if not all(task.done for task in self.tasks):
             cancel_scope.cancel()
         yield from self.wait()
