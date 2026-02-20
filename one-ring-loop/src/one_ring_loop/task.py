@@ -53,7 +53,7 @@ class CancelScope:
         _local.cancel_queue.extend(self.task_ids)
 
     def __enter__(self) -> Self:
-        """Adds the current task from the scope."""
+        """Adds the current task to the scope."""
         get_current_task().enter_cancel_scope(self)
         return self
 

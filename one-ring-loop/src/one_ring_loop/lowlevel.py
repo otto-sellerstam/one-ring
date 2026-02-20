@@ -27,8 +27,4 @@ def unpark(task_id: TaskID) -> None:
     Args:
         task_id: The id of the task to unpark
     """
-    try:
-        _local.unpark_queue.append(task_id)
-    except KeyError as e:
-        msg = f"Attempted to unpark non-parked or non-existing task with id {task_id}"
-        raise RuntimeError(msg) from e
+    _local.unpark_queue.append(task_id)
