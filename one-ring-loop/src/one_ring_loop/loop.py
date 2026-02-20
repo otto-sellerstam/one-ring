@@ -63,8 +63,15 @@ class Loop:
             if isinstance(task.awaiting_operation, WaitsOn):
                 continue
             if task.waiting:
-                cancel_operation = Cancel(task_id)
-                worker.register(cancel_operation, _get_new_operation_id())
+                # Check if the task is inside a shielded scope, until hitting the
+                # cancelled CancelScope.
+                for cancel_scope in reversed(task.cancel_scopes):
+                    if cancel_scope.cancelled or cancel_scope.shielded:
+                        break
+
+                if cancel_scope.cancelled:
+                    cancel_operation = Cancel(task_id)
+                    worker.register(cancel_operation, _get_new_operation_id())
 
         if should_submit:
             worker.submit()

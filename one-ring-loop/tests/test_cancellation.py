@@ -60,14 +60,38 @@ def test_move_on_after() -> None:
 
 def test_move_on_after_cancels_from_outer_scope() -> None:
     def entry() -> Coro[None]:
-        start_time = time.monotonic()
         with fail_after(1), move_on_after(2):
             yield from sleep(3)
 
-        assert time.monotonic() - start_time < 2
+    with pytest.raises(Cancelled):
+        run(entry())
+
+
+def test_shield_raises() -> None:
+    def entry() -> Coro[None]:
+        start_time = time.monotonic()
+        try:
+            with fail_after(1):
+                with move_on_after(2, shield=True):
+                    yield from sleep(3)
+                yield from sleep(1)  # Should raise
+        finally:
+            assert time.monotonic() - start_time >= 2
 
     with pytest.raises(Cancelled):
         run(entry())
+
+
+def test_shield_does_not_raise() -> None:
+    def entry() -> Coro[None]:
+        start_time = time.monotonic()
+        try:
+            with fail_after(1), move_on_after(2, shield=True):
+                yield from sleep(3)
+        finally:
+            assert time.monotonic() - start_time >= 2
+
+    run(entry())
 
 
 if __name__ == "__main__":
@@ -75,4 +99,6 @@ if __name__ == "__main__":
     # test_fails_after_does_not_raise()
     # test_fails_after_does_not_cancel()
     # test_move_on_after()
-    test_move_on_after_cancels_from_outer_scope()
+    # test_move_on_after_cancels_from_outer_scope()
+    test_shield_does_not_raise()
+    test_shield_raises()
