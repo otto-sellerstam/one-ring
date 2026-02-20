@@ -76,7 +76,8 @@ class Loop:
             with self.set_current_task(task):
                 task.start()
 
-    def _register_tasks(self, worker: IOWorker) -> None:
+    # TODO: Simplify this method.
+    def _register_tasks(self, worker: IOWorker) -> None:  # noqa: C901
         tasks_to_register = [
             task
             for task in self.tasks.values()
@@ -84,18 +85,20 @@ class Loop:
             if not task.waiting and task.started and not task.done
         ]
         for task in tasks_to_register:
-            if (
-                (cancel_scope := task.current_cancel_scope()) is not None
-                and cancel_scope.cancelled
-                and not isinstance(task.awaiting_operation, WaitsOn)  # TODO: Think.
-            ):
-                # The task is canceled, and the task has no current IO in progress.
-                with self.set_current_task(task):
-                    task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
+            for cancel_scope in reversed(task.cancel_scopes):
+                if cancel_scope.cancelled and not isinstance(
+                    task.awaiting_operation, WaitsOn
+                ):
+                    # The task is canceled, and the task has no current IO in progress.
+                    with self.set_current_task(task):
+                        task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
 
-                # If the .throw call finished the task, don't register it.
-                if task.done:
-                    continue
+                if not cancel_scope.shielded:
+                    break
+
+            # If a .throw call finished the task, don't register it.
+            if task.done:
+                continue
 
             match task.awaiting_operation:
                 case IOOperation():

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, overload, override
+from typing import TYPE_CHECKING, Self, overload, override
 
 from one_ring_core.log import get_logger
 from one_ring_loop._utils import _get_new_operation_id, _local
@@ -13,6 +13,7 @@ from one_ring_loop.operations import Park, WaitsOn
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from types import TracebackType
 
     from one_ring_core.operations import IOOperation
     from one_ring_core.results import IOCompletion
@@ -37,6 +38,9 @@ _not_done = NotDone()
 class CancelScope:
     """Cancel scope, inspired by Trio."""
 
+    """If the scope is shielded from cancellation or not."""
+    shielded: bool = field(default=False)
+
     """Whether the cancel scope is cancelled or not"""
     cancelled: bool = field(default=False, init=False)
 
@@ -47,6 +51,20 @@ class CancelScope:
         """Cancels the cancel scope."""
         self.cancelled = True
         _local.cancel_queue.extend(self.task_ids)
+
+    def __enter__(self) -> Self:
+        """Adds the current task from the scope."""
+        get_current_task().enter_cancel_scope(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        """Removes the current task from the scope."""
+        get_current_task().exit_cancel_scope()
 
     def add_task(self, task_id: TaskID) -> None:
         """Adds a task to the cancel scope."""
