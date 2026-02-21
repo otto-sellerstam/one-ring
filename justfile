@@ -37,20 +37,20 @@ typecheck:
 ### Testing #############################################################
 
 # Run all tests across all packages
-test:
-    uv run pytest
+test *args:
+    uv run pytest {{args}}
 
 # Run tests for a specific package
-test-pkg pkg:
-    uv run pytest {{pkg}}/tests
+test-pkg pkg *args:
+    uv run pytest {{pkg}}/tests {{args}}
 
 # Run tests with coverage (all packages)
 test-cov:
     uv run pytest --cov=one-ring-core/src/one_ring_core --cov=one-ring-loop/src/one_ring_loop --cov=one-ring-asyncio/src/one_ring_asyncio --cov-report=term-missing --cov-report=html
 
 # Run tests with verbose output
-test-verbose:
-    uv run pytest -v
+test-verbose *args:
+    uv run pytest -v {{args}}
 
 ### Combined ############################################################
 

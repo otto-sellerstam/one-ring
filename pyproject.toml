@@ -32,6 +32,7 @@ liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
 dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.9",
     "pyrefly>=0.53",
     "pre-commit>=4.0",
@@ -126,6 +127,10 @@ addopts = [
     "--strict-config",
     "-ra",
     "--import-mode=importlib",
+]
+timeout = 30
+markers = [
+    "io: marks tests that perform real file or socket I/O via io_uring",
 ]
 
 [tool.coverage.report]

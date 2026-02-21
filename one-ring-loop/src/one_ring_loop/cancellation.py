@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING
 
 from one_ring_loop.exceptions import Cancelled
@@ -23,14 +23,17 @@ def fail_after(delay: float, *, shield: bool = False) -> Generator[CancelScope]:
 
         Cancels the cancel scope if not finished after sleep.
         """
-        yield from sleep(delay)
+        with suppress(Cancelled):
+            yield from sleep(delay)
+
         if not finished:
             cancel_scope.cancel()
 
     finished = False
     with CancelScope(shielded=shield) as scope:
-        _create_standalone_task(cancellation_task(scope), None, None)
+        task = _create_standalone_task(cancellation_task(scope), None, None)
         yield scope
+        task.current_cancel_scope().cancel()
     finished = True
 
 

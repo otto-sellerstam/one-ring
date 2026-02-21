@@ -39,20 +39,40 @@ class Event:
 
 @dataclass
 class Lock:
-    """Lock primitive."""
+    """Lock primitive (classic mutex)."""
+
+    _semaphore: Semaphore = field(default_factory=lambda: Semaphore(1), init=False)
+
+    def acquire(self) -> Coro[None]:
+        """Attempts to acquire the lock."""
+        yield from self._semaphore.acquire()
+
+    def release(self) -> None:
+        """Releases the lock for the next task to acquire it."""
+        self._semaphore.release()
+
+    def locked(self) -> bool:
+        """Checks if the lock is currently held."""
+        return self._semaphore.value == 1
+
+
+@dataclass
+class Semaphore:
+    """Semaphore primitive."""
+
+    """Max number of entries without release allowed."""
+    initial_value: int
 
     _events: deque[Event] = field(default_factory=deque, init=False)
 
     def acquire(self) -> Coro[None]:
         """Attempts to acquire the lock."""
-        if self._events:
-            dependant_event = self._events[-1]
-            event = Event()
-            self._events.append(event)
+        event = Event()
+        self._events.append(event)
+
+        if len(self._events) - 1 >= self.initial_value:
+            dependant_event = self._events[-(self.initial_value + 1)]
             yield from dependant_event.wait()
-        else:
-            event = Event()
-            self._events.append(event)
 
     def release(self) -> None:
         """Releases the lock for the next task to acquire it."""
@@ -60,3 +80,8 @@ class Lock:
             self._events.popleft().set()
         except IndexError as e:
             raise RuntimeError("Nothing to release") from e
+
+    @property
+    def value(self) -> int:
+        """Returns the current number of entries without releases."""
+        return len(self._events)

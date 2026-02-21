@@ -213,12 +213,14 @@ class TaskGroup:
 
     def enter(self) -> None:
         """Nop enter."""
+        # Same as CancelScope.__enter__
         get_current_task().enter_cancel_scope(self.cancel_scope)
 
     def exit(
         self,
     ) -> Coro[None]:
         """If an exception occurred, cancel all tasks."""
+        # Like CancelScope.__exit__, but fetches cancel scope, cancels, and awaits.
         cancel_scope = get_current_task().exit_cancel_scope()
         if not all(task.done for task in self.tasks):
             cancel_scope.cancel()

@@ -5,8 +5,8 @@ default:
 pkg := "one_ring_loop"
 
 # Run tests for this package
-test:
-    uv run pytest tests/
+test *args:
+    uv run pytest tests/ {{args}}
 
 # Run tests with coverage
 test-cov:
