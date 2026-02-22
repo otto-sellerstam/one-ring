@@ -93,6 +93,11 @@ class BufferedByteReceiveStream:
         msg = f"Delimiter '{delimiter}' was not found within {max_bytes} bytes"
         raise DelimiterNotFoundError(msg)
 
+    @property
+    def buffer(self) -> bytes:
+        """Returns the contents of the internal buffer."""
+        return bytes(self._buffer)
+
 
 @dataclass
 class BufferedByteStream(BufferedByteReceiveStream):
