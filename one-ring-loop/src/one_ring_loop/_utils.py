@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from one_ring_core.results import IOResult
 
@@ -24,7 +24,7 @@ def _get_new_operation_id() -> TaskID:
 def _execute[T: IOResult](op: IOOperation[T]) -> Coro[T]:
     """Unwrap an IO completion into the expected result type."""
     expected = op.result_type
-    completion = yield op
+    completion = yield cast("IOOperation[IOResult]", op)
     if completion is not None and isinstance(result := completion.unwrap(), expected):
         return result
     elif completion is None:
