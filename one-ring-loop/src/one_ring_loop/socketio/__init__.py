@@ -93,9 +93,9 @@ class Connection:
     """Either server file descriptor, or client file descriptor."""
     fd: int
 
-    def recv(self, size: int) -> Coro[bytes]:
+    def receive(self, max_bytes: int) -> Coro[bytes]:
         """Reads data from socket."""
-        result = yield from _execute(SocketRecv(self.fd, size))
+        result = yield from _execute(SocketRecv(self.fd, max_bytes))
         return result.content
 
     def send(self, data: bytes) -> Coro[int]:

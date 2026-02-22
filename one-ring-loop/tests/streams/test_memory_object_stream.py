@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from one_ring_loop.log import get_logger
-from one_ring_loop.streams import (
+from one_ring_loop.streams.memory import (
     BrokenResourceError,
     ClosedResourceError,
     EndOfStreamError,

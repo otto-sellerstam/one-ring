@@ -40,7 +40,7 @@ class TestSocketIO:
                 yield from event.wait()
                 client_socket = yield from connect(ip, port)
                 try:
-                    content = yield from client_socket.recv(1024)
+                    content = yield from client_socket.receive(1024)
                 finally:
                     yield from client_socket.close()
                 yield from tg.wait()
