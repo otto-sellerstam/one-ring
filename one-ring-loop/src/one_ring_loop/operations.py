@@ -22,3 +22,8 @@ class WaitsOn:
 @dataclass
 class Park:
     """Parks the yielding task until resumed by another task."""
+
+
+@dataclass
+class Checkpoint:
+    """Sentinel that yields control back to event loop."""

@@ -11,7 +11,7 @@ from one_ring_core.operations import Cancel, IOOperation
 from one_ring_core.worker import IOWorker
 from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
-from one_ring_loop.operations import Park, WaitsOn
+from one_ring_loop.operations import Checkpoint, Park, WaitsOn
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -48,6 +48,7 @@ class Loop:
                 self._register_tasks(worker)
                 self._drive_unparked_tasks()
                 self._drive_completed_tasks(worker)
+                self._drive_checkpointed_tasks()
                 self._remove_done_tasks()
 
     def _handle_cancellations(self, worker: IOWorker) -> None:
@@ -110,12 +111,13 @@ class Loop:
             match task.awaiting_operation:
                 case IOOperation():
                     worker.register(task.awaiting_operation, task.task_id)
-                    logger.info("Registered task", task_id=task.task_id)
                 case WaitsOn(task_ids=task_ids):
                     for task_id in task_ids:
                         self.task_dependencies[task_id].add(task.task_id)
                 case Park():
                     pass
+                case Checkpoint():
+                    continue
                 case None:
                     continue
 
@@ -134,6 +136,7 @@ class Loop:
                 isinstance(t.awaiting_operation, WaitsOn | Park)
                 for t in self.tasks.values()
             ):
+                logger.info("Raising Deadlock error", tasks=self.tasks)
                 raise RuntimeError(
                     "Deadlock: all tasks waiting on dependencies, no pending I/O"
                 )
@@ -143,7 +146,6 @@ class Loop:
             # Peek until we get None.
             while (completion := worker.peek()) is not None:
                 completions.add(completion)
-                logger.info("Added completion", task_id=completion.user_data)
 
         return completions
 
@@ -151,13 +153,12 @@ class Loop:
         completions = self._get_completed_operations(worker)
         for completion in completions:
             if completion.user_data not in self.tasks:
-                # At the moment, this means that it's a cancellation.
+                # At the moment, this means that it's an I/O cancellation.
                 # TODO: Make more general and reliable.
                 continue
 
             # completion.user_data should be renamed.
             task = self.tasks[completion.user_data]
-            logger.info("Driving task", task_id=task.task_id)
 
             with self.set_current_task(task):
                 if (
@@ -181,11 +182,21 @@ class Loop:
             with self.set_current_task(unparked_task):
                 unparked_task.drive(None)
 
+    def _drive_checkpointed_tasks(self) -> None:
+        """Drives tasks that have been checkpointed."""
+        checkpointed_tasks = [
+            task
+            for task in self.tasks.values()
+            if isinstance(task.awaiting_operation, Checkpoint)
+        ]
+
+        for task in checkpointed_tasks:
+            with self.set_current_task(task):
+                task.drive(None)
+
     def _remove_done_tasks(self) -> None:
         done_tasks = [task for task in self.tasks.values() if task.done]
         for done_task in done_tasks:
-            logger.info("Task finished", task_id=done_task.task_id)
-
             # Now drive tasks that were dependant on the done tasks.
             while self.task_dependencies[done_task.task_id]:
                 waiting_task_id = self.task_dependencies[done_task.task_id].pop()

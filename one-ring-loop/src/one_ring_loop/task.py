@@ -9,15 +9,14 @@ from one_ring_core.log import get_logger
 from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.lowlevel import get_current_task, get_running_loop
-from one_ring_loop.operations import Park, WaitsOn
+from one_ring_loop.operations import WaitsOn
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from types import TracebackType
 
-    from one_ring_core.operations import IOOperation
     from one_ring_core.results import IOCompletion
-    from one_ring_loop.typedefs import Coro, TaskID
+    from one_ring_loop.typedefs import Coro, EventLoopOperation, TaskID
 
 logger = get_logger(__name__)
 
@@ -86,7 +85,7 @@ class Task[TResult]:
     task_id: TaskID
 
     """Cancel scope stack for the task"""
-    cancel_scopes: deque[CancelScope]
+    cancel_scopes: deque[CancelScope] = field(repr=False)
 
     """For the task to know where it lives."""
     task_group: TaskGroup | None = field(repr=False)
@@ -98,9 +97,7 @@ class Task[TResult]:
     waiting: bool = field(default=False, init=False)
 
     """The current IO operation that is performed."""
-    awaiting_operation: IOOperation | WaitsOn | Park | None = field(
-        default=None, init=False
-    )
+    awaiting_operation: EventLoopOperation | None = field(default=None, init=False)
 
     """If the task has been started or not."""
     started: bool = field(default=False, init=False)
@@ -116,6 +113,11 @@ class Task[TResult]:
 
         self.drive(None)
         self.started = True
+        logger.info(
+            "Started task with awaiting operation",
+            op=self.awaiting_operation,
+            task_id=self.task_id,
+        )
 
     def drive(self, value: IOCompletion | None) -> None:
         """Drives the attached generator coroutine forwards."""

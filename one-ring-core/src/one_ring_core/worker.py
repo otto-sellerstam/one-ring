@@ -54,7 +54,6 @@ class IOWorker:
     def _add_submission(
         self, identifier: WorkerOperationID, operation: IOOperation
     ) -> None:
-        logger.info("Added submission", user_data=identifier)
         self._active_submissions[identifier] = operation
 
     def _pop_submission(self, identifier: WorkerOperationID) -> IOOperation:
@@ -67,14 +66,12 @@ class IOWorker:
         Returns:
             The popped submission.
         """
-        logger.info("Popped submission", user_data=identifier)
         return self._active_submissions.pop(identifier)
 
     def submit(self) -> None:
         """Submits the SQ to the kernel."""
         # This should check that all new registrations where actually submitted
-        number_submitted = self._ring.submit()
-        logger.info("Submitted SQEs", sqe_number=number_submitted)
+        self._ring.submit()
 
     def wait(self) -> IOCompletion[IOResult]:
         """Blocking check if a completion event is available.

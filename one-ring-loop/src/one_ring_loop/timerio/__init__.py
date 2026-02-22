@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from one_ring_core.operations import Sleep
 from one_ring_loop._utils import _execute
+from one_ring_loop.lowlevel import checkpoint
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
@@ -9,5 +10,8 @@ if TYPE_CHECKING:
 
 def sleep(time: float) -> Coro[None]:
     """Sleep coroutine."""
-    yield from _execute(Sleep(time))
+    if time == 0:
+        yield from checkpoint()
+    else:
+        yield from _execute(Sleep(time))
     return None

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from one_ring_core.operations import IOOperation
 from one_ring_core.results import IOCompletion, IOResult
 from one_ring_core.typedefs import WorkerOperationID
+from one_ring_loop.operations import Checkpoint
 
 if TYPE_CHECKING:
     from one_ring_loop.operations import Park, WaitsOn
@@ -14,4 +15,5 @@ if TYPE_CHECKING:
 type TaskID = WorkerOperationID
 
 # TODO: Define an "Operation" type, including all operations suppported by the loop.
-type Coro[T] = Generator[IOOperation | WaitsOn | Park, IOCompletion[IOResult] | None, T]
+type EventLoopOperation = IOOperation[IOResult] | WaitsOn | Park | Checkpoint
+type Coro[T] = Generator[EventLoopOperation, IOCompletion[IOResult] | None, T]
