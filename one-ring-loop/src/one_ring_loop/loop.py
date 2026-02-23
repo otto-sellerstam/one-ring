@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Loop:
     """The one-ring-loop. Bask in it's glory."""
 
@@ -38,6 +38,9 @@ class Loop:
 
     """The task which is currently executing synchronously"""
     _current_task: Task | None = None
+
+    """Maps operation id to task id for in-flight operations"""
+    operation_to_task: dict[int, TaskID] = field(default_factory=dict, init=False)
 
     def run_until_complete(self) -> None:
         """Runs the event loop until all tasks are complete."""
@@ -63,7 +66,12 @@ class Loop:
             task = self.tasks[task_id]
             if isinstance(task.awaiting_operation, WaitsOn):
                 continue
-            if task.waiting:
+            if isinstance(task.awaiting_operation, Park):
+                # No kernel op, throw directly
+                with self.set_current_task(task):
+                    task.throw(Cancelled())
+                continue
+            if task.waiting and task.in_flight_op_id is not None:
                 # Check if the task is inside a shielded scope, until hitting the
                 # cancelled CancelScope.
                 for cancel_scope in reversed(task.cancel_scopes):
@@ -71,8 +79,8 @@ class Loop:
                         break
 
                 if cancel_scope.cancelled:
-                    cancel_operation = Cancel(task_id)
-                    worker.register(cancel_operation, _get_new_operation_id())
+                    cancel_op = Cancel(target_identifier=task.in_flight_op_id)
+                    worker.register(cancel_op, _get_new_operation_id())
 
         if should_submit:
             worker.submit()
@@ -101,7 +109,7 @@ class Loop:
                     with self.set_current_task(task):
                         task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
 
-                if not cancel_scope.shielded:
+                if cancel_scope.shielded:
                     break
 
             # If a .throw call finished the task, don't register it.
@@ -110,7 +118,10 @@ class Loop:
 
             match task.awaiting_operation:
                 case IOOperation():
-                    worker.register(task.awaiting_operation, task.task_id)
+                    op_id = _get_new_operation_id()
+                    worker.register(task.awaiting_operation, op_id)
+                    self.operation_to_task[op_id] = task.task_id
+                    task.in_flight_op_id = op_id
                 case WaitsOn(task_ids=task_ids):
                     for task_id in task_ids:
                         self.task_dependencies[task_id].add(task.task_id)
@@ -152,13 +163,14 @@ class Loop:
     def _drive_completed_tasks(self, worker: IOWorker) -> None:
         completions = self._get_completed_operations(worker)
         for completion in completions:
-            if completion.user_data not in self.tasks:
-                # At the moment, this means that it's an I/O cancellation.
-                # TODO: Make more general and reliable.
-                continue
+            op_id = completion.user_data
+            task_id = self.operation_to_task.pop(op_id, None)
 
-            # completion.user_data should be renamed.
-            task = self.tasks[completion.user_data]
+            if task_id is None:
+                continue
+            task = self.tasks.get(task_id)
+            if task is None:
+                continue
 
             with self.set_current_task(task):
                 if (

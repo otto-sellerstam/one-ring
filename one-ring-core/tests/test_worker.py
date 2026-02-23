@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 def test_io_worker_single_read_wait() -> None:
     with IOWorker() as worker, tempfile.TemporaryDirectory() as tmpdir:
         test_path = Path(tmpdir) / "fileio_test.txt"
-        worker.register(FileOpen(bytes(test_path), "rwc"), 1)
+        worker.register(FileOpen(path=bytes(test_path), mode="rwc"), 1)
         worker.submit()
         completion = worker.wait()
         if isinstance(result := completion.unwrap(), FileOpenResult):
@@ -26,9 +26,9 @@ def test_io_worker_multi_read_peek() -> None:
         test_path1 = Path(tmpdir) / "hello.txt"
         test_path2 = Path(tmpdir) / "world.txt"
         test_path3 = Path(tmpdir) / "exclamation.txt"
-        worker.register(FileOpen(bytes(test_path1), "rwc"), 1)
-        worker.register(FileOpen(bytes(test_path2), "rwc"), 2)
-        worker.register(FileOpen(bytes(test_path3), "rwc"), 3)
+        worker.register(FileOpen(path=bytes(test_path1), mode="rwc"), 1)
+        worker.register(FileOpen(path=bytes(test_path2), mode="rwc"), 2)
+        worker.register(FileOpen(path=bytes(test_path3), mode="rwc"), 3)
         worker.submit()
         i = 0
         while i < 3:
@@ -43,7 +43,7 @@ def test_io_worker_multi_read_peek() -> None:
 def test_io_worker_no_such_file() -> None:
     with IOWorker() as worker, tempfile.TemporaryDirectory() as tmpdir:
         test_path = Path(tmpdir) / "should_not_exist.txt"
-        worker.register(FileOpen(bytes(test_path), "rw"), 1)
+        worker.register(FileOpen(path=bytes(test_path), mode="rw"), 1)
         worker.submit()
         completion = worker.wait()
         with pytest.raises(FileNotFoundError, match="No such file or directory"):

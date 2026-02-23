@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 ### Define "await" compatible sleep ###
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Sleep:
     """Asynchonous sleep."""
 

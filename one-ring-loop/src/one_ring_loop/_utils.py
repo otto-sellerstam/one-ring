@@ -34,7 +34,7 @@ def _execute[T: IOResult](op: IOOperation[T]) -> Coro[T]:
     raise TypeError(msg)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class _Local(threading.local):
     """Wrapper around threading.local for proper type annotations."""
 

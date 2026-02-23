@@ -13,5 +13,5 @@ def sleep(time: float) -> Coro[None]:
     if time == 0:
         yield from checkpoint()
     else:
-        yield from _execute(Sleep(time))
+        yield from _execute(Sleep(time=time))
     return None

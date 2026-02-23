@@ -21,7 +21,7 @@ class AddressFamily(Enum):
     AF_INET6 = SocketFamily.AF_INET6
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketAddress:
     """Wrapper around liburing's sockaddr."""
 

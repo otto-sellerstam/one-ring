@@ -44,6 +44,7 @@ class TestSocketIO:
                 finally:
                     yield from client_socket.close()
                 yield from tg.wait()
+                logger.info("Received content from server", content=content)
                 assert content == SERVER_MESSAGE, (
                     f"Expected {SERVER_MESSAGE!r}, got {content!r}"
                 )

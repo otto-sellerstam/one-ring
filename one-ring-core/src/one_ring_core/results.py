@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from one_ring_core.typedefs import WorkerOperationID
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class IOCompletion[T: IOResult]:
     """Docstring."""
 
@@ -22,24 +22,24 @@ class IOCompletion[T: IOResult]:
         return self.result
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class IOResult:
     """Base class for all IO operation results."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class CancelResult(IOResult):
     """Result of cancelling an in flight IO operation."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class FileOpenResult(IOResult):
     """Result of a file open operation."""
 
     fd: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class FileReadResult(IOResult):
     """Result of a file read operation."""
 
@@ -47,46 +47,46 @@ class FileReadResult(IOResult):
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class FileWriteResult(IOResult):
     """Result of a file write operation."""
 
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class CloseResult(IOResult):
     """Result of a file close operation."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SleepResult(IOResult):
     """Result of sleeping."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketCreateResult(IOResult):
     """Docstring."""
 
     fd: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketSetOptResult(IOResult):
     """Docstring."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketBindResult(IOResult):
     """Docstring."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketListenResult(IOResult):
     """Docstring."""
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketAcceptResult(IOResult):
     """Docstring."""
 
@@ -94,7 +94,7 @@ class SocketAcceptResult(IOResult):
     fd: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketRecvResult(IOResult):
     """Docstring."""
 
@@ -102,13 +102,13 @@ class SocketRecvResult(IOResult):
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketSendResult(IOResult):
     """Docstring."""
 
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, kw_only=True, frozen=True)
 class SocketConnectResult(IOResult):
     """Docstring."""

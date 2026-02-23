@@ -6,7 +6,7 @@ import array
 import errno
 import os
 import socket
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
 
@@ -56,8 +56,10 @@ major, minor = (int(x) for x in os.uname().release.split(".")[:2])
 SUPPORTS_URING_BIND = (major, minor) >= (6, 7)
 
 
-class IOOperation[T: IOResult](ABC):
+class IOOperation[T: IOResult](metaclass=ABCMeta):
     """Base class for all IO operations."""
+
+    __slots__ = ()
 
     result_type: type[T]
 
@@ -74,7 +76,7 @@ class IOOperation[T: IOResult](ABC):
         return completion_event.res < 0
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Cancel(IOOperation[CancelResult]):
     """Cancels an in-flight operation."""
 
@@ -106,7 +108,7 @@ class Cancel(IOOperation[CancelResult]):
         }
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class FileOpen(IOOperation[FileOpenResult]):
     """Docstring."""
 
@@ -145,7 +147,7 @@ class FileOpen(IOOperation[FileOpenResult]):
         return flags
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class FileRead(IOOperation[FileReadResult]):
     """File descriptor for the regular file."""
 
@@ -181,7 +183,7 @@ class FileRead(IOOperation[FileReadResult]):
         )
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class FileWrite(IOOperation[FileWriteResult]):
     """File descriptor for the regular file."""
 
@@ -209,7 +211,7 @@ class FileWrite(IOOperation[FileWriteResult]):
         )
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Close(IOOperation[CloseResult]):
     """File descriptor for the regular file."""
 
@@ -228,7 +230,7 @@ class Close(IOOperation[CloseResult]):
         return CloseResult()
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Sleep(IOOperation[SleepResult]):
     """File descriptor for the regular file."""
 
@@ -254,7 +256,7 @@ class Sleep(IOOperation[SleepResult]):
         return completion_event.res != -errno.ETIME
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketCreate(IOOperation[SocketCreateResult]):
     """Prepares a socket."""
 
@@ -277,10 +279,10 @@ class SocketCreate(IOOperation[SocketCreateResult]):
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketCreateResult:
         """Docstring."""
-        return SocketCreateResult(completion_event.res)
+        return SocketCreateResult(fd=completion_event.res)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketSetOpt(IOOperation[SocketSetOptResult]):
     """Configures options for a socket."""
 
@@ -327,7 +329,7 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
         return self._sync_result is None or self._sync_result < 0
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketBind(IOOperation[SocketBindResult]):
     """Assign address and port to a socket."""
 
@@ -350,7 +352,9 @@ class SocketBind(IOOperation[SocketBindResult]):
 
     def __post_init__(self) -> None:
         """Initializes socket address attribute."""
-        self._sockaddr = SocketAddress(self.address_family, self.ip, self.port)
+        self._sockaddr = SocketAddress(
+            family=self.address_family, ip=self.ip, port=self.port
+        )
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
@@ -379,7 +383,7 @@ class SocketBind(IOOperation[SocketBindResult]):
         return self._sync_result is None or self._sync_result < 0
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketListen(IOOperation[SocketListenResult]):
     """Marks a socket as passive."""
 
@@ -419,7 +423,7 @@ class SocketListen(IOOperation[SocketListenResult]):
         return self._sync_result is None or self._sync_result < 0
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketAccept(IOOperation[SocketAcceptResult]):
     """Accepts a connection on a socket."""
 
@@ -436,10 +440,10 @@ class SocketAccept(IOOperation[SocketAcceptResult]):
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketAcceptResult:
         """Docstring."""
-        return SocketAcceptResult(completion_event.res)
+        return SocketAcceptResult(fd=completion_event.res)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketRecv(IOOperation[SocketRecvResult]):
     """Reads from a socket."""
 
@@ -472,7 +476,7 @@ class SocketRecv(IOOperation[SocketRecvResult]):
         )
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketSend(IOOperation[SocketSendResult]):
     """Sends data to a socket."""
 
@@ -492,10 +496,10 @@ class SocketSend(IOOperation[SocketSendResult]):
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSendResult:
         """Docstring."""
-        return SocketSendResult(completion_event.res)
+        return SocketSendResult(size=completion_event.res)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class SocketConnect(IOOperation[SocketConnectResult]):
     """Connects to a socket."""
 
@@ -516,7 +520,9 @@ class SocketConnect(IOOperation[SocketConnectResult]):
 
     def __post_init__(self) -> None:
         """Initializes socket family attribute."""
-        self._sockaddr = SocketAddress(self.address_family, self.ip, self.port)
+        self._sockaddr = SocketAddress(
+            family=self.address_family, ip=self.ip, port=self.port
+        )
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:

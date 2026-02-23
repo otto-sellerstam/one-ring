@@ -26,7 +26,7 @@ logger = get_logger()
 # 5. Profit
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class MemoryObjectStreamBase[T]:
     """Base class for memory object receive and send streams."""
 
@@ -46,7 +46,7 @@ class MemoryObjectStreamBase[T]:
     _closed: bool = field(default=False, init=False)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class MemoryObjectSendStream[T](MemoryObjectStreamBase[T]):
     """Sends items to a MemoryObjectReceiveStream."""
 
@@ -106,7 +106,7 @@ class MemoryObjectSendStream[T](MemoryObjectStreamBase[T]):
         return len(self.buffer) < self.buffer.maxlen
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class MemoryObjectReceiveStream[T](MemoryObjectStreamBase[T]):
     """Receives items from a MemoryObjectSendStream."""
 

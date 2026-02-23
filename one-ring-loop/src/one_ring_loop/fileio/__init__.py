@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class File:
     """Utility wrapper for file operations. Represents a single regular file."""
 
@@ -16,22 +16,22 @@ class File:
 
     def read(self) -> Coro[str]:
         """Read file low-level coroutine."""
-        result = yield from _execute(FileRead(self.fd))
+        result = yield from _execute(FileRead(fd=self.fd))
         return result.content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:
         """Write file low-level coroutine."""
         _data = data.encode() if isinstance(data, str) else data
-        result = yield from _execute(FileWrite(self.fd, _data))
+        result = yield from _execute(FileWrite(fd=self.fd, data=_data))
         return result.size
 
     def close(self) -> Coro[None]:
         """Close file low-level coroutine."""
-        yield from _execute(Close(self.fd))
+        yield from _execute(Close(fd=self.fd))
         return None
 
 
 def open_file(path: str, mode: str = "r") -> Coro[File]:
     """Open file coroutine."""
-    result = yield from _execute(FileOpen(path.encode(), mode))
-    return File(result.fd)
+    result = yield from _execute(FileOpen(path=path.encode(), mode=mode))
+    return File(fd=result.fd)

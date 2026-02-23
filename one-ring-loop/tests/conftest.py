@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class TimingContext:
     """Captures elapsed time and provides tolerance-aware assertions."""
 

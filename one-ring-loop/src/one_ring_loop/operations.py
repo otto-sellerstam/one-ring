@@ -12,18 +12,18 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import TaskID
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class WaitsOn:
     """For dependency relationships between tasks."""
 
     task_ids: tuple[TaskID, ...]
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Park:
     """Parks the yielding task until resumed by another task."""
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Checkpoint:
     """Sentinel that yields control back to event loop."""

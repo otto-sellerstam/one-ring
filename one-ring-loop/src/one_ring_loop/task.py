@@ -33,7 +33,7 @@ class NotDone:
 _not_done = NotDone()
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class CancelScope:
     """Cancel scope, inspired by Trio."""
 
@@ -74,7 +74,7 @@ class CancelScope:
         self.task_ids.remove(task_id)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Task[TResult]:
     """Drives coroutines forwards."""
 
@@ -102,6 +102,9 @@ class Task[TResult]:
     """If the task has been started or not."""
     started: bool = field(default=False, init=False)
 
+    """Operation ID of the currently in flight operation"""
+    in_flight_op_id: int | None = field(default=None, init=False)
+
     """Final result of the task."""
     _result: TResult | NotDone | BaseException = field(default=_not_done, init=False)
 
@@ -113,11 +116,6 @@ class Task[TResult]:
 
         self.drive(None)
         self.started = True
-        logger.info(
-            "Started task with awaiting operation",
-            op=self.awaiting_operation,
-            task_id=self.task_id,
-        )
 
     def drive(self, value: IOCompletion | None) -> None:
         """Drives the attached generator coroutine forwards."""
@@ -190,7 +188,7 @@ class Task[TResult]:
                 raise
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class TaskGroup:
     """Trio style nursery.
 
@@ -223,7 +221,7 @@ class TaskGroup:
     ) -> Coro[None]:
         """If an exception occurred, cancel all tasks."""
         # Like CancelScope.__exit__, but fetches cancel scope, cancels, and awaits.
-        cancel_scope = get_current_task().exit_cancel_scope()
+        cancel_scope: CancelScope = get_current_task().exit_cancel_scope()
         if not all(task.done for task in self.tasks):
             cancel_scope.cancel()
         yield from self.wait()
@@ -255,7 +253,7 @@ def wait_on(*tasks: Task) -> Coro[None]:
     """
     while not all(task.done for task in tasks):
         unfinished = tuple(task.task_id for task in tasks if not task.done)
-        yield WaitsOn(unfinished)
+        yield WaitsOn(task_ids=unfinished)
 
 
 def _create_standalone_task[T](
@@ -277,9 +275,11 @@ def _create_standalone_task[T](
         new_cancel_scope.add_task(task_id)
         _cancel_scopes = deque([new_cancel_scope])
     else:
-        _cancel_scopes = cancel_scopes
+        _cancel_scopes = deque(cancel_scopes)
 
-    task: Task[T] = Task(gen, task_id, _cancel_scopes, task_group)
+    task: Task[T] = Task(
+        gen=gen, task_id=task_id, cancel_scopes=_cancel_scopes, task_group=task_group
+    )
     get_running_loop().add_task(task)
     return task
 

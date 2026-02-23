@@ -112,7 +112,7 @@ class TestSemaphore:
         def entry() -> Coro[None]:
             tg = TaskGroup()
 
-            semaphore = Semaphore(2)
+            semaphore = Semaphore(initial_value=2)
 
             timing.start()
             tg.enter()
@@ -138,7 +138,7 @@ class TestSemaphore:
     def test_semaphore_nothing_to_release_raises(self, run_coro) -> None:
         def entry() -> Coro[None]:
             yield from sleep(0)
-            semaphore = Semaphore(2)
+            semaphore = Semaphore(initial_value=2)
             semaphore.release()
 
         with pytest.raises(RuntimeError, match="Nothing to release"):

@@ -28,22 +28,22 @@ def _create() -> Coro[int]:
 
 
 def _set_options(fd: int) -> Coro[None]:
-    yield from _execute(SocketSetOpt(fd))
+    yield from _execute(SocketSetOpt(fd=fd))
     return None
 
 
 def _bind(fd: int, host: bytes, port: int) -> Coro[None]:
-    yield from _execute(SocketBind(fd, host, port))
+    yield from _execute(SocketBind(fd=fd, ip=host, port=port))
     return None
 
 
 def _listen(fd: int) -> Coro[None]:
-    yield from _execute(SocketListen(fd))
+    yield from _execute(SocketListen(fd=fd))
     return None
 
 
 def _connect(fd: int, host: bytes, port: int) -> Coro[None]:
-    yield from _execute(SocketConnect(fd, host, port))
+    yield from _execute(SocketConnect(fd=fd, ip=host, port=port))
     return None
 
 
@@ -53,7 +53,7 @@ def create_server(host: bytes, port: int) -> Coro[Server]:
     yield from _set_options(fd)
     yield from _bind(fd, host, port)
     yield from _listen(fd)
-    return Server(fd)
+    return Server(fd=fd)
 
 
 def connect(host: bytes, port: int) -> Coro[Connection]:
@@ -61,10 +61,10 @@ def connect(host: bytes, port: int) -> Coro[Connection]:
     fd = yield from _create()
     yield from _connect(fd, host, port)
 
-    return Connection(fd)
+    return Connection(fd=fd)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Server:
     """Used to accept new connections."""
 
@@ -77,33 +77,32 @@ class Server:
         Returns:
             client file descriptor
         """
-        result = yield from _execute(SocketAccept(self.fd))
-        return Connection(result.fd)
+        result = yield from _execute(SocketAccept(fd=self.fd))
+        return Connection(fd=result.fd)
 
     def close(self) -> Coro[None]:
         """Close socket."""
-        yield from _execute(Close(self.fd))
+        yield from _execute(Close(fd=self.fd))
         return None
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Connection:
     """Corresponds a socket connection. Either from server, or client."""
 
     """Either server file descriptor, or client file descriptor."""
     fd: int
 
-    def receive(self, max_bytes: int) -> Coro[bytes]:
+    def receive(self, max_bytes: int = 65536) -> Coro[bytes]:
         """Reads data from socket."""
-        result = yield from _execute(SocketRecv(self.fd, max_bytes))
+        result = yield from _execute(SocketRecv(fd=self.fd, size=max_bytes))
         return result.content
 
-    def send(self, data: bytes) -> Coro[int]:
+    def send(self, data: bytes, /) -> Coro[None]:
         """Sends data to socket."""
-        result = yield from _execute(SocketSend(self.fd, data))
-        return result.size
+        yield from _execute(SocketSend(fd=self.fd, data=data))
 
     def close(self) -> Coro[None]:
         """Close socket."""
-        yield from _execute(Close(self.fd))
+        yield from _execute(Close(fd=self.fd))
         return None

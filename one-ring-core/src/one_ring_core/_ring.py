@@ -213,7 +213,7 @@ class SubmissionQueueEntry:
         io_uring_prep_connect(self._sqe, fd, addr.get_sockaddr())
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class CompletionEvent:
     """Wrapper around CQEs emitted by the ring."""
 
@@ -222,7 +222,7 @@ class CompletionEvent:
     flags: int
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Ring:
     """Utility wrappeer of ring buffer."""
 

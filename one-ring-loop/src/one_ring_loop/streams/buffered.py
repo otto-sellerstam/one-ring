@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, override
+from typing import TYPE_CHECKING, override
 
 from one_ring_loop.streams.exceptions import (
     ClosedResourceError,
@@ -8,35 +8,16 @@ from one_ring_loop.streams.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from one_ring_loop.streams.protocols import ReceiveStream, SendStream
     from one_ring_loop.typedefs import Coro
 
 
-class ReceiveStream(Protocol):
-    """Common interface usable with buffered byte receive stream."""
-
-    def close(self) -> Coro[None]:
-        """Closes the resouce."""
-
-    def receive(self) -> Coro[bytes]:
-        """Receives data from stream."""
-
-
-class SendStream(Protocol):
-    """Common interface for sending usable with buffered byte stream."""
-
-    def close(self) -> Coro[None]:
-        """Closes the resouce."""
-
-    def send(self, data: bytes, /) -> Coro[None]:
-        """Sends data to stream."""
-
-
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class BufferedByteReceiveStream:
     """Wraps any bytes-based receive stream to exposed buffered reads."""
 
     """Wrapped receive stream"""
-    receive_stream: ReceiveStream
+    receive_stream: ReceiveStream[bytes]
 
     """Internal buffer"""
     _buffer: bytearray = field(default_factory=bytearray, init=False, repr=False)
@@ -99,12 +80,12 @@ class BufferedByteReceiveStream:
         return bytes(self._buffer)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class BufferedByteStream(BufferedByteReceiveStream):
     """Full-duplex variant of buffered receive stream."""
 
     """Thinly wrapped send stream"""
-    send_stream: SendStream
+    send_stream: SendStream[bytes]
 
     @override
     def close(self) -> Coro[None]:

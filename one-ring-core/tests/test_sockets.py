@@ -25,13 +25,13 @@ def test_sockets() -> None:
 
         try:
             # Set reuse addr + bind + listen
-            w.register(SocketSetOpt(server_fd), 2)
-            w.register(SocketBind(server_fd, b"127.0.0.1", 9999), 3)
+            w.register(SocketSetOpt(fd=server_fd), 2)
+            w.register(SocketBind(fd=server_fd, ip=b"127.0.0.1", port=9999), 3)
             w.submit()
             w.wait()
             w.wait()
 
-            w.register(SocketListen(server_fd), 4)
+            w.register(SocketListen(fd=server_fd), 4)
             w.submit()
             w.wait()
 
@@ -41,8 +41,8 @@ def test_sockets() -> None:
             client_fd = w.wait().unwrap().fd  # pyrefly: ignore
 
             # Accept client
-            w.register(SocketAccept(server_fd), 6)
-            w.register(SocketConnect(client_fd, b"127.0.0.1", 9999), 7)
+            w.register(SocketAccept(fd=server_fd), 6)
+            w.register(SocketConnect(fd=client_fd, ip=b"127.0.0.1", port=9999), 7)
             w.submit()  # one syscall, kernel handles both
 
             # Two completions come back (order may vary)
@@ -54,8 +54,8 @@ def test_sockets() -> None:
             )
 
             # === Echo: client sends, server receives ===
-            w.register(SocketSend(client_fd, b"hello"), 8)
-            w.register(SocketRecv(accepted_fd, 1024), 9)
+            w.register(SocketSend(fd=client_fd, data=b"hello"), 8)
+            w.register(SocketRecv(fd=accepted_fd, size=1024), 9)
             w.submit()
 
             # Again, two completions
@@ -63,14 +63,14 @@ def test_sockets() -> None:
             w.wait()
         finally:
             if server_fd:
-                w.register(Close(server_fd), 1)
+                w.register(Close(fd=server_fd), 1)
                 w.submit()
                 w.wait()
             if client_fd:
-                w.register(Close(client_fd), 2)
+                w.register(Close(fd=client_fd), 2)
                 w.submit()
                 w.wait()
             if accepted_fd:
-                w.register(Close(accepted_fd), 3)
+                w.register(Close(fd=accepted_fd), 3)
                 w.submit()
                 w.wait()

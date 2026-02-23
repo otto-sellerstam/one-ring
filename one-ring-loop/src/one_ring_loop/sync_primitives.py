@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = get_logger()
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Event:
     """Event primitive."""
 
@@ -41,14 +41,16 @@ class Event:
         yield Park()
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Lock:
     """Lock primitive (classic mutex)."""
 
     """ID of the task currently holding the lock."""
     owner: TaskID | None = field(default=None, init=False, repr=False)
 
-    _semaphore: Semaphore = field(default_factory=lambda: Semaphore(1), init=False)
+    _semaphore: Semaphore = field(
+        default_factory=lambda: Semaphore(initial_value=1), init=False
+    )
 
     def acquire(self) -> Coro[None]:
         """Attempts to acquire the lock."""
@@ -67,7 +69,7 @@ class Lock:
         return self._semaphore.value == 1
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Semaphore:
     """Semaphore primitive."""
 
@@ -99,7 +101,7 @@ class Semaphore:
         return len(self._events)
 
 
-@dataclass
+@dataclass(slots=True, kw_only=True)
 class Condition:
     """Trio style Condition primitive."""
 
