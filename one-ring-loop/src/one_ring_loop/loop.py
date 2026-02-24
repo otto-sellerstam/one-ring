@@ -11,7 +11,11 @@ from one_ring_core.operations import Cancel, IOOperation
 from one_ring_core.worker import IOWorker
 from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
-from one_ring_loop.operations import Checkpoint, Park, WaitsOn
+from one_ring_loop.operations import Park, WaitsOn
+from one_ring_loop.task.state import (
+    Ready,
+    Submitted,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -57,7 +61,7 @@ class Loop:
 
     def _start_tasks(self) -> None:
         """Starts new tasks."""
-        unstarted_tasks = [task for task in self.tasks.values() if not task.started]
+        unstarted_tasks = [task for task in self.tasks.values() if not task.is_started]
         for task in unstarted_tasks:
             with self.set_current_task(task):
                 task.start()
@@ -66,21 +70,20 @@ class Loop:
         """Drains cancellation queue and registers and submits IO cancellations ops."""
         should_submit = False
         while _local.cancel_queue:
-            should_submit = True
-
             task_id = _local.cancel_queue.popleft()
             if task_id not in self.tasks:
                 continue
             task = self.tasks[task_id]
-            if isinstance(task.awaiting_operation, WaitsOn):
+            if task.is_waiting_on:
                 continue
-            if task.waiting and self._should_cancel(task):
-                if isinstance(task.awaiting_operation, Park):
+            if task.should_cancel():
+                if task.is_parked:
                     # No kernel op, throw directly
                     with self.set_current_task(task):
                         task.throw(Cancelled())
-                elif task.in_flight_op_id is not None:
-                    cancel_op = Cancel(target_identifier=task.in_flight_op_id)
+                elif (op_id := task.pending_cancel_op_id()) is not None:
+                    should_submit = True
+                    cancel_op = Cancel(target_identifier=op_id)
                     worker.register(cancel_op, _get_new_operation_id())
 
         if should_submit:
@@ -88,62 +91,50 @@ class Loop:
 
     def _get_ready_tasks(self) -> list[Task]:
         """Gets the tasks ready to register with the IO worker."""
-        return [
-            t for t in self.tasks.values() if t.started and not t.waiting and not t.done
-        ]
+        return [task for task in self.tasks.values() if task.is_ready]
 
     def _cancel_ready_tasks(self) -> None:
         """Cancel tasks with cancelled scopes, otherwise ready for I/O submition."""
         for task in self._get_ready_tasks():
             # Check for cancelled, non-shielded cancel scopes
-            if not isinstance(task.awaiting_operation, WaitsOn) and self._should_cancel(
-                task
-            ):
+            if task.should_cancel():
                 with self.set_current_task(task):
                     task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
 
     def _register_ready_tasks(self, worker: IOWorker) -> None:
         """Register ready tasks with the I/O worker."""
-        ready_tasks = self._get_ready_tasks()
-        for task in ready_tasks:
+        should_submit = False
+        for task in self._get_ready_tasks():
             # If a .throw call finished the task, don't register it.
-            if task.done:
+            if task.is_done:
                 continue
 
-            match task.awaiting_operation:
-                case IOOperation():
+            match task.state:
+                case Ready(operation=IOOperation() as op):
+                    should_submit = True
                     op_id = _get_new_operation_id()
-                    worker.register(task.awaiting_operation, op_id)
+                    worker.register(op, op_id)
                     self.operation_to_task[op_id] = task.task_id
-                    task.in_flight_op_id = op_id
-                case WaitsOn(task_ids=task_ids):
-                    for task_id in task_ids:
+                    task.state = Submitted(operation=op, op_id=op_id)
+                case Ready(operation=WaitsOn(task_ids=ids)):
+                    for task_id in ids:
                         self.task_dependencies[task_id].add(task.task_id)
-                case Park():
-                    pass
-                case Checkpoint():
-                    continue
-                case None:
+                    task.state = Submitted(operation=WaitsOn(task_ids=ids))
+                case Ready(operation=Park()):
+                    task.state = Submitted(operation=Park())
+                case _:
                     continue
 
-            task.waiting = True
-
-        if ready_tasks:
+        if should_submit:
             worker.submit()
 
     def _collect_completions(self, worker: IOWorker) -> set[IOCompletion[IOResult]]:
         """Waits for completions if all tasks are waiting, otherwise peeks."""
         completions: set[IOCompletion] = set()
 
-        if all(task.waiting for task in self.tasks.values()):
-            if all(
-                isinstance(t.awaiting_operation, WaitsOn | Park)
-                for t in self.tasks.values()
-            ):
-                logger.info("Raising Deadlock error", tasks=self.tasks)
-                raise RuntimeError(
-                    "Deadlock: all tasks waiting on dependencies, no pending I/O"
-                )
+        if all(task.is_submitted for task in self.tasks.values()):
+            if not any(task.has_pending_io for task in self.tasks.values()):
+                raise RuntimeError("Deadlock: all tasks blocked, no pending I/O")
             completion = worker.wait()
             completions.add(completion)
         else:
@@ -190,9 +181,7 @@ class Loop:
     def _drive_checkpointed_tasks(self) -> None:
         """Drives tasks that have been checkpointed."""
         checkpointed_tasks = [
-            task
-            for task in self.tasks.values()
-            if isinstance(task.awaiting_operation, Checkpoint)
+            task for task in self.tasks.values() if task.is_checkpointed
         ]
 
         for task in checkpointed_tasks:
@@ -200,13 +189,13 @@ class Loop:
                 task.drive(None)
 
     def _remove_done_tasks(self) -> None:
-        done_tasks = [task for task in self.tasks.values() if task.done]
+        done_tasks = [task for task in self.tasks.values() if task.is_done]
         for done_task in done_tasks:
             # Now drive tasks that were dependant on the done tasks.
             while self.task_dependencies[done_task.task_id]:
                 waiting_task_id = self.task_dependencies[done_task.task_id].pop()
                 waiting_task = self.tasks[waiting_task_id]
-                if waiting_task.done:
+                if waiting_task.is_done:
                     # The loop has already driven this forward, for example if all tasks
                     # waiting_task depended on finished in the same loop iteration.
                     continue
@@ -216,18 +205,8 @@ class Loop:
             self.task_dependencies.pop(done_task.task_id)
 
         self.tasks = {
-            task_id: task for task_id, task in self.tasks.items() if not task.done
+            task_id: task for task_id, task in self.tasks.items() if not task.is_done
         }
-
-    def _should_cancel(self, task: Task) -> bool:
-        """Determines if a task should be cancelled from its cancel scopes."""
-        for cancel_scope in reversed(task.cancel_scopes):
-            if cancel_scope.cancelled:
-                return True
-            if cancel_scope.shielded:
-                return False
-
-        return False
 
     @property
     def current_task(self) -> Task:

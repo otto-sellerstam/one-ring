@@ -14,6 +14,5 @@ if TYPE_CHECKING:
 
 type TaskID = WorkerOperationID
 
-# TODO: Define an "Operation" type, including all operations suppported by the loop.
 type EventLoopOperation = IOOperation[IOResult] | WaitsOn | Park | Checkpoint
 type Coro[T] = Generator[EventLoopOperation, IOCompletion[IOResult] | None, T]

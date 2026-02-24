@@ -9,14 +9,15 @@ from one_ring_core.log import get_logger
 from one_ring_loop._utils import _get_new_operation_id, _local
 from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.lowlevel import get_current_task, get_running_loop
-from one_ring_loop.operations import WaitsOn
+from one_ring_loop.operations import Checkpoint, Park, WaitsOn
+from one_ring_loop.task.state import Created, Done, Ready, Submitted, TaskState
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from types import TracebackType
 
     from one_ring_core.results import IOCompletion
-    from one_ring_loop.typedefs import Coro, EventLoopOperation, TaskID
+    from one_ring_loop.typedefs import Coro, TaskID
 
 logger = get_logger(__name__)
 
@@ -90,66 +91,90 @@ class Task[TResult]:
     """For the task to know where it lives."""
     task_group: TaskGroup | None = field(repr=False)
 
-    # TODO: Below attributes four could be made an enum to make invalid states
-    # unrepresentable, but would also come at the cost of verbose pattern matching.
-
-    """If the task is currently waiting on the kernel to finish IO"""
-    waiting: bool = field(default=False, init=False)
-
-    """The current IO operation that is performed"""
-    awaiting_operation: EventLoopOperation | None = field(default=None, init=False)
-
-    """If the task has been started or not"""
-    started: bool = field(default=False, init=False)
-
-    """Operation ID of the currently in flight operation"""
-    in_flight_op_id: int | None = field(default=None, init=False)
-
-    """Final result of the task"""
-    _result: TResult | NotDone | BaseException = field(default=_not_done, init=False)
+    """Union encompassing the current state of the task"""
+    state: TaskState[TResult] = field(default_factory=Created)
 
     def start(self) -> None:
         """Starts the task."""
-        if self.started:
-            msg = f"Task with task_id {self.task_id} already running"
-            raise RuntimeError(msg)
+        if not isinstance(self.state, Created):
+            msg = f"Task with task_id {self.task_id} has already been started"
+            raise RuntimeError(msg)  # noqa: TRY004
 
         self.drive(None)
-        self.started = True
 
     def drive(self, value: IOCompletion | None) -> None:
         """Drives the attached generator coroutine forwards."""
-        self.waiting = False
-        self.in_flight_op_id = None
-        self.awaiting_operation = None
         with self._handle_drive_exc():
-            if value is None:
-                self.awaiting_operation = self.gen.send(None)
-            else:
-                self.awaiting_operation = self.gen.send(value)
+            op = self.gen.send(value)
+            self.state = Ready(operation=op)
 
     def throw(self, exc: BaseException) -> None:
         """Throws an exception into the task's generator."""
-        self.waiting = False
-        self.in_flight_op_id = None
-        self.awaiting_operation = None
         with self._handle_drive_exc():
-            self.awaiting_operation = self.gen.throw(exc)
+            op = self.gen.throw(exc)
+            self.state = Ready(operation=op)
+
+    def pending_cancel_op_id(self) -> int | None:
+        """Returns the kernel op_id to cancel, or None if not applicable."""
+        if not isinstance(self.state, Submitted):
+            return None
+        return self.state.op_id
 
     @property
-    def done(self) -> bool:
+    def is_started(self) -> bool:
+        """Checks if a task has been started."""
+        return not isinstance(self.state, Created)
+
+    @property
+    def is_checkpointed(self) -> bool:
+        """Checks if a task is currently checkpointed."""
+        return isinstance(self.state, Ready) and isinstance(
+            self.state.operation, Checkpoint
+        )
+
+    @property
+    def is_parked(self) -> bool:
+        """If the task is currently parked."""
+        return isinstance(self.state, Submitted) and isinstance(
+            self.state.operation, Park
+        )
+
+    @property
+    def is_waiting_on(self) -> bool:
+        """If the task is currently waiting on other task dependancies."""
+        return isinstance(self.state, Submitted) and isinstance(
+            self.state.operation, WaitsOn
+        )
+
+    @property
+    def has_pending_io(self) -> bool:
+        """Checks if the task is currently waiting on I/O result from kernel."""
+        return isinstance(self.state, Submitted) and self.state.op_id is not None
+
+    @property
+    def is_ready(self) -> bool:
+        """If a task is ready to be processed."""
+        return isinstance(self.state, Ready)
+
+    @property
+    def is_submitted(self) -> bool:
+        """If a task has had its operation submitted."""
+        return isinstance(self.state, Submitted)
+
+    @property
+    def is_done(self) -> bool:
         """If a task has finished."""
-        return not isinstance(self._result, NotDone)
+        return isinstance(self.state, Done)
 
     @property
     def result(self) -> TResult:
         """Gets the result of a finished task."""
-        if isinstance(self._result, NotDone):
+        if not isinstance(self.state, Done):
             raise RuntimeError("Task result access before task was finished")  # noqa: TRY004
-        if isinstance(self._result, BaseException):
-            raise self._result
+        if isinstance(self.state.result, BaseException):
+            raise self.state.result
 
-        return self._result
+        return self.state.result
 
     def wait(self) -> Coro[TResult]:
         """Waits on a Task, so that another Task can yield from it."""
@@ -174,16 +199,26 @@ class Task[TResult]:
 
         return self.cancel_scopes[-1]
 
+    def should_cancel(self) -> bool:
+        """Determines if a task should be cancelled from its cancel scopes."""
+        for cancel_scope in reversed(self.cancel_scopes):
+            if cancel_scope.cancelled:
+                return True
+            if cancel_scope.shielded:
+                return False
+
+        return False
+
     def set_error(self, exc: BaseException) -> None:
         """Sets the result of the task to an exception."""
-        self._result = exc
+        self.state = Done(result=exc)
 
     @contextmanager
     def _handle_drive_exc(self) -> Generator[None]:
         try:
             yield
         except StopIteration as e:
-            self._result = e.value
+            self.state = Done(result=e.value)
         except BaseException as e:
             self.set_error(e)
             if self.task_group is not None:
@@ -226,7 +261,7 @@ class TaskGroup:
         """If an exception occurred, cancel all tasks."""
         # Like CancelScope.__exit__, but fetches cancel scope, cancels, and awaits.
         cancel_scope: CancelScope = get_current_task().exit_cancel_scope()
-        if not all(task.done for task in self.tasks):
+        if not all(task.is_done for task in self.tasks):
             cancel_scope.cancel()
         yield from self.wait()
 
@@ -255,8 +290,8 @@ def wait_on(*tasks: Task) -> Coro[None]:
     Args:
         tasks: the tasks for which we want to wait for
     """
-    while not all(task.done for task in tasks):
-        unfinished = tuple(task.task_id for task in tasks if not task.done)
+    while not all(task.is_done for task in tasks):
+        unfinished = tuple(task.task_id for task in tasks if not task.is_done)
         yield WaitsOn(task_ids=unfinished)
 
 
