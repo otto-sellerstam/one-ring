@@ -37,9 +37,6 @@ The majority of all `liburing` calls take flags of different types. For both typ
 
 Once more functionality has been added, structure the project for a clear separation of concerns and functionality from an API point of view.
 
-## Implement an `execute` function to reduce boilerplate in low-level coroutines
-
-See title eeh
 
 ## Solve inline TODOs
 

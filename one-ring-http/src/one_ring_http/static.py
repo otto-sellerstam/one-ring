@@ -25,7 +25,6 @@ def static_handler(root: str | Path) -> HTTPHandler:
         if path == "/":
             path = "/index.html"
 
-        # Resolve and check it's still under root
         candidates = [
             root_path / path.lstrip("/"),
             root_path / (path.lstrip("/") + ".html"),
@@ -33,6 +32,7 @@ def static_handler(root: str | Path) -> HTTPHandler:
         ]
 
         for candidate in candidates:
+            # Resolve and check it's still under root
             file_path = candidate.resolve()
             if not file_path.is_relative_to(root_path):
                 continue
