@@ -1,3 +1,33 @@
-Package wrapping `liburing`, exposing IO via typed requests.
+# one-ring-core
 
-To be updated with examples.
+Low-level [io_uring](https://kernel.dk/io_uring.pdf) wrapper for Python.
+
+Part of the [one-ring](https://github.com/otto-sellerstam/one-ring) project.
+
+## What it provides
+
+- **Ring management** - initialize, submit, and consume io_uring submission/completion queues
+- **Typed IO operations** - file open/read/write/close, socket create/bind/listen/accept/send/recv, timeouts
+- **Result types** - structured completion events with user data, result codes, and flags
+
+## Requirements
+
+- **Linux** with `io_uring` support (kernel 6.7+ for full socket support)
+- **Python 3.14+**
+
+## Installation
+
+```bash
+uv add one-ring-core
+```
+
+**Note:** This package requires `liburing >= 2025.8.26`, which is not yet published to PyPI.
+Until it is, install liburing from GitHub first:
+
+```bash
+uv add git+https://github.com/YoSTEALTH/Liburing.git
+```
+
+## License
+
+MIT

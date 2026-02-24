@@ -1,16 +1,33 @@
 [project]
 name = "one-ring-http"
 version = "0.1.0"
-description = ""
+description = "HTTP/1.1 server built on one-ring-loop and io_uring"
 requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [
     { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
 ]
+readme = "README.md"
+keywords = ["io_uring", "http", "server", "async", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Typing :: Typed",
+]
 dependencies = [
     "structlog>=24.0",
-    "one-ring-loop",
+    "one-ring-loop>=0.1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/otto-sellerstam/one-ring"
+Repository = "https://github.com/otto-sellerstam/one-ring"
+Issues = "https://github.com/otto-sellerstam/one-ring/issues"
 
 [build-system]
 requires = ["hatchling"]

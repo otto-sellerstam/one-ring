@@ -73,6 +73,28 @@ docs-serve:
 update:
     copier update --defaults
 
+### Publishing #############################################################
+
+# Build wheel and sdist for a specific package
+build pkg:
+    uv build {{pkg}}
+
+# Build all publishable packages
+build-all:
+    uv build one-ring-core
+    uv build one-ring-loop
+    uv build one-ring-http
+
+# Publish a specific package to PyPI (builds go to root dist/)
+publish pkg: (build pkg)
+    uv publish dist/$(echo {{pkg}} | tr '-' '_')-*.whl dist/$(echo {{pkg}} | tr '-' '_')-*.tar.gz
+
+# Publish all packages in dependency order
+publish-all: build-all
+    uv publish dist/one_ring_core-*
+    uv publish dist/one_ring_loop-*
+    uv publish dist/one_ring_http-*
+
 ### Cleanup #############################################################
 
 # Remove build artifacts and caches

@@ -1,16 +1,33 @@
 [project]
 name = "one-ring-core"
 version = "0.1.0"
-description = ""
+description = "Low-level io_uring wrapper for Python: ring management, IO operations, and typed results"
 requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [
     { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
 ]
+readme = "README.md"
+keywords = ["io_uring", "async", "io", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
 dependencies = [
     "structlog>=24.0",
-    "liburing",
+    "liburing>=2025.8.26",
 ]
+
+[project.urls]
+Homepage = "https://github.com/otto-sellerstam/one-ring"
+Repository = "https://github.com/otto-sellerstam/one-ring"
+Issues = "https://github.com/otto-sellerstam/one-ring/issues"
 
 [tool.uv.sources]
 liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }

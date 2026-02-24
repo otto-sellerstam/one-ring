@@ -1,16 +1,33 @@
 [project]
 name = "one-ring-loop"
 version = "0.1.0"
-description = ""
+description = "Custom async event loop built on io_uring with structured concurrency, file/socket IO, and timers"
 requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [
     { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
 ]
+readme = "README.md"
+keywords = ["io_uring", "async", "event-loop", "coroutines", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
 dependencies = [
-    "one-ring-core",
+    "one-ring-core>=0.1.0",
     "structlog>=24.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/otto-sellerstam/one-ring"
+Repository = "https://github.com/otto-sellerstam/one-ring"
+Issues = "https://github.com/otto-sellerstam/one-ring/issues"
 
 [build-system]
 requires = ["hatchling"]

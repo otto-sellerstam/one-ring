@@ -13,7 +13,7 @@ def echo_handler(conn: Connection) -> Coro[None]:
     """Gets data sent from a client and echoes it."""
     try:
         while True:
-            data = yield from conn.recv(1024)
+            data = yield from conn.receive(1024)
             if not data:
                 break
             yield from conn.send(b"Server echoes: " + data)

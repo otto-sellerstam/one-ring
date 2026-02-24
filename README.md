@@ -57,6 +57,15 @@ if __name__ == "__main__":
     run(echo_server())
 ```
 
+## Important: liburing dependency
+
+This project requires `liburing >= 2025.8.26`, which is not yet published to PyPI.
+Until it is, install liburing from GitHub first:
+
+```bash
+uv add git+https://github.com/YoSTEALTH/Liburing.git
+```
+
 ## Setup
 
 ```bash
