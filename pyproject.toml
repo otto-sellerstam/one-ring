@@ -15,6 +15,7 @@ members = [
     "one-ring-core",
     "one-ring-loop",
     "one-ring-asyncio",
+    "one-ring-http",
 ]
 
 [tool.uv.sources]
@@ -22,6 +23,7 @@ one-ring-core = { workspace = true }
 one-ring-loop = { workspace = true }
 one-ring-asyncio = { workspace = true }
 liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
+one-ring-http = { workspace = true }
 
 # ── Development dependencies ────────────────────────────────────────────
 
@@ -48,7 +50,7 @@ docs = [
 [tool.ruff]
 target-version = "py314"
 line-length = 88
-src = ["one-ring-core/src", "one-ring-core/tests", "one-ring-loop/src", "one-ring-loop/tests", "one-ring-asyncio/src", "one-ring-asyncio/tests"]
+src = ["one-ring-core/src", "one-ring-core/tests", "one-ring-loop/src", "one-ring-loop/tests", "one-ring-asyncio/src", "one-ring-asyncio/tests", "one-ring-http/src", "one-ring-http/tests"]
 extend-exclude = ["docs"]
 
 [tool.ruff.lint]
@@ -101,13 +103,13 @@ ignore = [
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio"]
+known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio", "one_ring_http"]
 
 # ── Pyrefly ─────────────────────────────────────────────────────────────
 
 [tool.pyrefly]
-project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py"]
-search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src"]
+project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py", "one-ring-http/src/**/*.py", "one-ring-http/tests/**/*.py"]
+search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src"]
 replace-imports-with-any = ["liburing"]
 
 [tool.pyrefly.errors]
@@ -117,8 +119,8 @@ missing-override-decorator = true
 # ── Pytest ──────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
-testpaths = ["one-ring-core/tests", "one-ring-loop/tests", "one-ring-asyncio/tests"]
-pythonpath = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src"]
+testpaths = ["one-ring-core/tests", "one-ring-loop/tests", "one-ring-asyncio/tests", "one-ring-http/tests"]
+pythonpath = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src"]
 addopts = [
     "--strict-markers",
     "--strict-config",

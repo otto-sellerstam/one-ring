@@ -7,6 +7,7 @@ Generator based async I/O from scratch using Linux's `io_uring`, a custom event 
 - **one-ring-core** — Low-level `io_uring` wrapper: ring management, IO operations, and result types
 - **one-ring-loop** — Custom event loop with task scheduling, file I/O, socket I/O, and timers. Opinionated API regarding structurred concurrency.
 - **one-ring-asyncio** — asyncio event loop integration (WIP)
+- **one-ring-http** — HTTP server built on `one-ring-loop`
 
 ## Example
 
