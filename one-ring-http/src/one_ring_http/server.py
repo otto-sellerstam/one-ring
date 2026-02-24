@@ -51,40 +51,38 @@ class HTTPServer:
 
     def _handle_connection(self, conn: Connection) -> Coro[None]:
         """Handles an incoming connection."""
-        logger.info("Creating TLS stream")
         try:
-            tls_con = yield from TLSStream.wrap(
-                conn, ssl_context=self.ssl_context, standard_compatible=False
-            )
-        except Exception:
-            with move_on_after(3, shield=True):
-                yield from conn.close()
-            raise
+            logger.info("Creating TLS stream")
+            try:
+                tls_con = yield from TLSStream.wrap(
+                    conn, ssl_context=self.ssl_context, standard_compatible=False
+                )
+            except Exception:
+                with move_on_after(3, shield=True):
+                    yield from conn.close()
+                raise
 
-        logger.info("Creating buffered byte stream")
-        try:
+            logger.info("Creating buffered byte stream")
             buffered_stream = BufferedByteStream(
                 receive_stream=tls_con, send_stream=tls_con
             )
-        except Exception:
-            with move_on_after(3, shield=True):
-                yield from conn.close()
-            raise
 
-        try:
-            logger.info("Parsing request")
-            request = yield from Request.parse(buffered_stream)
-            logger.info("Fetching handler")
-            handler = self.router.resolve(request.method, request.path)
-            logger.info("Calling handler")
-            result = handler(request)
-            if isinstance(result, Generator):
-                logger.info("Yielding from handler!")
-                response = yield from result
-            else:
-                response = result
-            logger.info("Sending serialized response")
-            yield from buffered_stream.send(response.serialize())
-        finally:
-            with move_on_after(3, shield=True):
-                yield from buffered_stream.close()
+            try:
+                logger.info("Parsing request")
+                request = yield from Request.parse(buffered_stream)
+                logger.info("Fetching handler")
+                handler = self.router.resolve(request.method, request.path)
+                logger.info("Calling handler")
+                result = handler(request)
+                if isinstance(result, Generator):
+                    logger.info("Yielding from handler!")
+                    response = yield from result
+                else:
+                    response = result
+                logger.info("Sending serialized response")
+                yield from buffered_stream.send(response.serialize())
+            finally:
+                with move_on_after(3, shield=True):
+                    yield from buffered_stream.close()
+        except Exception:
+            logger.exception("Connection error")

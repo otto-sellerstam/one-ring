@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from one_ring_http.response import Response
 from one_ring_http.router import Router
 from one_ring_http.server import HTTPServer
+from one_ring_http.static import static_handler
 from one_ring_loop import run
 from one_ring_loop.timerio import sleep
 
@@ -41,7 +42,8 @@ router = Router()
 router.add("GET", "/", hello_world)
 router.add("POST", "/echo", echo)
 router.add("GET", "/big", big_response)
+router.set_fallback(static_handler("./examples/http_server/static"))
 
-server = HTTPServer(router=router, host="127.0.0.1", port=8001, ssl_context=ssl_context)
+server = HTTPServer(router=router, host="127.0.0.1", port=8000, ssl_context=ssl_context)
 
 run(server.serve())

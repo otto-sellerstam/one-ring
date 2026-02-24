@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, TypeGuard
 
 from one_ring_loop.log import get_logger
 
@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 
 logger = get_logger()
+
+ALLOWED_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -43,18 +45,21 @@ class Request:
         target = tokens[1].decode()
         version = tokens[2].decode()
 
+        if not cls.verify_http_method(method):
+            raise RuntimeError
+
         # 2. Get headers, until reaching empty line
         headers: HTTPHeaders = {}
         line = yield from buffered_stream.receive_until(
             delimiter=b"\r\n", max_bytes=65536
         )
         while line:
-            key_val = line.split(b": ")
+            key_val = line.split(b": ", 1)
             header_name = key_val[0].decode().lower()
             header_val = key_val[1].decode()
 
             if header_name in headers and header_name != "set-cookie":
-                header_val = headers[header_name] + ", "
+                header_val = headers[header_name] + ", " + header_val
 
             headers[header_name] = header_val
             line = yield from buffered_stream.receive_until(
@@ -74,3 +79,8 @@ class Request:
             headers=headers,
             body=body,
         )
+
+    @staticmethod
+    def verify_http_method(method: str) -> TypeGuard[HTTPMethod]:
+        """Verifies that HTTP method is valid."""
+        return method in ALLOWED_HTTP_METHODS

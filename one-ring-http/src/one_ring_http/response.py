@@ -21,12 +21,11 @@ class Response:
     def serialize(self) -> bytes:
         """Serializes a response for transfer."""
         # 1. Add first line
-        serialized_response = bytes(f"HTTP/1.1 {self.status_code}\r\n".encode())
+        serialized_response = f"HTTP/1.1 {self.status_code}\r\n".encode()
 
         # 2. Add headers
         content_length = len(self.body)
-        if content_length != 0:
-            serialized_response += f"content-length: {content_length}\r\n".encode()
+        serialized_response += f"content-length: {content_length}\r\n".encode()
 
         for header_name, header_val in self.headers.items():
             serialized_response += f"{header_name}: {header_val}\r\n".encode()

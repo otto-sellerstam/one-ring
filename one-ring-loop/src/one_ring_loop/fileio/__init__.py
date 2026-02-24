@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from one_ring_core.operations import Close, FileOpen, FileRead, FileWrite
@@ -31,7 +32,9 @@ class File:
         return None
 
 
-def open_file(path: str, mode: str = "r") -> Coro[File]:
+def open_file(path: str | Path, mode: str = "r") -> Coro[File]:
     """Open file coroutine."""
-    result = yield from _execute(FileOpen(path=path.encode(), mode=mode))
+    _path = str(path) if isinstance(path, Path) else path
+
+    result = yield from _execute(FileOpen(path=_path.encode(), mode=mode))
     return File(fd=result.fd)

@@ -13,13 +13,15 @@ def page_not_found(_: Request) -> Response:
     return Response(status_code=404)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class Router:
     """Routes HTTP request to handlers."""
 
     _registry: dict[tuple[HTTPMethod, str], HTTPHandler] = field(
         default_factory=dict, init=False
     )
+
+    _fallback: HTTPHandler = field(default=page_not_found, init=False)
 
     def add(self, method: HTTPMethod, path: str, handler: HTTPHandler) -> None:
         """Registers a path."""
@@ -29,5 +31,9 @@ class Router:
         """Returns the handler for a method and path."""
         handler = self._registry.get((method, path))
         if handler is None:
-            return page_not_found
+            return self._fallback
         return handler
+
+    def set_fallback(self, handler: HTTPHandler) -> None:
+        """Sets fallback."""
+        self._fallback = handler
