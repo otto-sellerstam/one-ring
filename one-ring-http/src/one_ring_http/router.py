@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from one_ring_http.typedef import HTTPHandler, HTTPMethod
 
 
-def page_not_found(request: Request) -> Response:  # noqa: ARG001
+def page_not_found(_: Request) -> Response:
     """Default handler for 404."""
     return Response(status_code=404)
 
