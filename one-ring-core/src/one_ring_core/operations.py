@@ -5,7 +5,6 @@ from __future__ import annotations
 import array
 import errno
 import os
-import socket
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
@@ -50,10 +49,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-
-# Socket io_uring bindings only work for WSL version >= 6.7.
-major, minor = (int(x) for x in os.uname().release.split(".")[:2])
-SUPPORTS_URING_BIND = (major, minor) >= (6, 7)
 
 
 class IOOperation[T: IOResult](metaclass=ABCMeta):
@@ -299,34 +294,15 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
     """Docstring"""
     val: array.array = field(default_factory=lambda: array.array("i", [1]))
 
-    """Sync socket results"""
-    _sync_result: int | None = field(init=False, default=None)
-
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        if SUPPORTS_URING_BIND:
-            sqe.prep_setsocketopt(self.fd, self.val, self.level, self.optname)
-        else:
-            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.setsockopt(self.level, self.optname, self.val)
-                self._sync_result = 0
-            except OSError as e:
-                self._sync_result = None if e.errno is None else -e.errno
-            finally:
-                sock.close()
-
-            sqe.prep_nop()
+        sqe.prep_setsocketopt(self.fd, self.val, self.level, self.optname)
         return sqe.user_data
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSetOptResult:
         """Docstring."""
         return SocketSetOptResult()
-
-    @override
-    def is_error(self, completion_event: CompletionEvent) -> bool:
-        return self._sync_result is None or self._sync_result < 0
 
 
 @dataclass(slots=True, kw_only=True)
@@ -348,8 +324,6 @@ class SocketBind(IOOperation[SocketBindResult]):
     """Address family"""
     address_family: AddressFamily = AddressFamily.AF_INET
 
-    _sync_result: int | None = field(init=False, default=None)
-
     def __post_init__(self) -> None:
         """Initializes socket address attribute."""
         self._sockaddr = SocketAddress(
@@ -358,29 +332,13 @@ class SocketBind(IOOperation[SocketBindResult]):
 
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        if SUPPORTS_URING_BIND:
-            sqe.prep_socket_bind(self.fd, self._sockaddr)
-        else:
-            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.bind((self.ip.decode(), self.port))
-                self._sync_result = 0
-            except OSError as e:
-                self._sync_result = None if e.errno is None else -e.errno
-            finally:
-                sock.close()
-
-            sqe.prep_nop()
+        sqe.prep_socket_bind(self.fd, self._sockaddr)
         return sqe.user_data
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketBindResult:
         """Docstring."""
         return SocketBindResult()
-
-    @override
-    def is_error(self, completion_event: CompletionEvent) -> bool:
-        return self._sync_result is None or self._sync_result < 0
 
 
 @dataclass(slots=True, kw_only=True)
@@ -394,33 +352,15 @@ class SocketListen(IOOperation[SocketListenResult]):
     """maximum number of connections the kernel will queue before accept"""
     backlog: int = 128
 
-    _sync_result: int | None = field(init=False, default=0)
-
     @override
     def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        if SUPPORTS_URING_BIND:
-            sqe.prep_socket_listen(self.fd, self.backlog)
-        else:
-            sock = socket.fromfd(self.fd, socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.listen(self.backlog)
-                self._sync_result = 0
-            except OSError as e:
-                self._sync_result = None if e.errno is None else -e.errno
-            finally:
-                sock.close()
-
-        sqe.prep_nop()
+        sqe.prep_socket_listen(self.fd, self.backlog)
         return sqe.user_data
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketListenResult:
         """Docstring."""
         return SocketListenResult()
-
-    @override
-    def is_error(self, completion_event: CompletionEvent) -> bool:
-        return self._sync_result is None or self._sync_result < 0
 
 
 @dataclass(slots=True, kw_only=True)

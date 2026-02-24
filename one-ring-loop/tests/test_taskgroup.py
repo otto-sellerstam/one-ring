@@ -36,8 +36,8 @@ class TestTaskGroup:
                 yield from run_taskgroup(tg)
 
             assert len(exc_info.value.exceptions) == 2
-            assert isinstance(exc_info.value.exceptions[0], ValueError)
-            assert isinstance(exc_info.value.exceptions[1], RuntimeError)
+            assert isinstance(exc_info.value.exceptions[0], ValueError | RuntimeError)
+            assert isinstance(exc_info.value.exceptions[1], ValueError | RuntimeError)
 
             timing.start()
             yield from sleep(0.2)

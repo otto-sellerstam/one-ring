@@ -46,7 +46,7 @@ class TestBufferedByteStream:
                 for part in b"hel", b"lo, ", b"wo", b"rld!":
                     yield from buffered.send(part)
 
-                result = yield from buffered.receive_until(b"w", 10)
+                result = yield from buffered.receive_until(delimiter=b"w", max_bytes=10)
                 assert result == b"hello, "
             finally:
                 yield from buffered.close()
@@ -63,7 +63,7 @@ class TestBufferedByteStream:
                 for part in b"hel", b"lo, ", b"wo", b"rld!":
                     yield from buffered.send(part)
 
-                result = yield from buffered.receive_until(b"x", 10)
+                result = yield from buffered.receive_until(delimiter=b"x", max_bytes=10)
                 assert result == b"hello, "
             finally:
                 yield from buffered.close()
@@ -83,7 +83,7 @@ class TestBufferedByteStream:
 
                 yield from buffered.close()
 
-                result = yield from buffered.receive_until(b"w", 10)
+                result = yield from buffered.receive_until(delimiter=b"w", max_bytes=10)
                 assert result == b"hello, "
             finally:
                 yield from buffered.close()
