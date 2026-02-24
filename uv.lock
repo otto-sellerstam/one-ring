@@ -456,10 +456,12 @@ wheels = [
 
 [[package]]
 name = "one-ring"
-version = "0.1.0"
+version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "liburing" },
+    { name = "one-ring-asyncio" },
+    { name = "one-ring-core" },
+    { name = "one-ring-loop" },
 ]
 
 [package.dev-dependencies]
@@ -479,7 +481,11 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "liburing", git = "https://github.com/YoSTEALTH/Liburing.git" }]
+requires-dist = [
+    { name = "one-ring-asyncio", editable = "one-ring-asyncio" },
+    { name = "one-ring-core", editable = "one-ring-core" },
+    { name = "one-ring-loop", editable = "one-ring-loop" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -513,22 +519,30 @@ name = "one-ring-core"
 version = "0.1.0"
 source = { editable = "one-ring-core" }
 dependencies = [
+    { name = "liburing" },
     { name = "structlog" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "structlog", specifier = ">=24.0" }]
+requires-dist = [
+    { name = "liburing", git = "https://github.com/YoSTEALTH/Liburing.git" },
+    { name = "structlog", specifier = ">=24.0" },
+]
 
 [[package]]
 name = "one-ring-loop"
 version = "0.1.0"
 source = { editable = "one-ring-loop" }
 dependencies = [
+    { name = "one-ring-core" },
     { name = "structlog" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "structlog", specifier = ">=24.0" }]
+requires-dist = [
+    { name = "one-ring-core", editable = "one-ring-core" },
+    { name = "structlog", specifier = ">=24.0" },
+]
 
 [[package]]
 name = "packaging"

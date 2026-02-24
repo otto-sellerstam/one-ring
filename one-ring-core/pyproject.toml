@@ -9,7 +9,11 @@ authors = [
 ]
 dependencies = [
     "structlog>=24.0",
+    "liburing",
 ]
+
+[tool.uv.sources]
+liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
 
 [build-system]
 requires = ["hatchling"]

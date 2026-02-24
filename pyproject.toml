@@ -2,17 +2,14 @@
 # Each package has its own [project] and [build-system].
 [project]
 name = "one-ring"
-version = "0.1.0"
-description = "A toy project, building a truly async file IO using io_uring, and on it building a custom event loop, as well as integration into asyncio's native event loop"
-readme = "README.md"
+version = "0.0.0"
 requires-python = ">=3.14"
-license = { text = "MIT" }
-authors = [
-    { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
-]
 dependencies = [
-    "liburing",
+    "one-ring-core",
+    "one-ring-loop",
+    "one-ring-asyncio",
 ]
+
 [tool.uv.workspace]
 members = [
     "one-ring-core",

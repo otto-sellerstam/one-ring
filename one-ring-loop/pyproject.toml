@@ -8,6 +8,7 @@ authors = [
     { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
 ]
 dependencies = [
+    "one-ring-core",
     "structlog>=24.0",
 ]
 
