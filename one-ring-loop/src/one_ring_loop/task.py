@@ -93,19 +93,19 @@ class Task[TResult]:
     # TODO: Below attributes four could be made an enum to make invalid states
     # unrepresentable, but would also come at the cost of verbose pattern matching.
 
-    """If the task is currently waiting on the kernel to finish IO."""
+    """If the task is currently waiting on the kernel to finish IO"""
     waiting: bool = field(default=False, init=False)
 
-    """The current IO operation that is performed."""
+    """The current IO operation that is performed"""
     awaiting_operation: EventLoopOperation | None = field(default=None, init=False)
 
-    """If the task has been started or not."""
+    """If the task has been started or not"""
     started: bool = field(default=False, init=False)
 
     """Operation ID of the currently in flight operation"""
     in_flight_op_id: int | None = field(default=None, init=False)
 
-    """Final result of the task."""
+    """Final result of the task"""
     _result: TResult | NotDone | BaseException = field(default=_not_done, init=False)
 
     def start(self) -> None:
