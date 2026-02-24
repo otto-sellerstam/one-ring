@@ -7,6 +7,7 @@ members = [
     "one-ring",
     "one-ring-asyncio",
     "one-ring-core",
+    "one-ring-http",
     "one-ring-loop",
 ]
 
@@ -461,6 +462,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "one-ring-asyncio" },
     { name = "one-ring-core" },
+    { name = "one-ring-http" },
     { name = "one-ring-loop" },
 ]
 
@@ -484,6 +486,7 @@ docs = [
 requires-dist = [
     { name = "one-ring-asyncio", editable = "one-ring-asyncio" },
     { name = "one-ring-core", editable = "one-ring-core" },
+    { name = "one-ring-http", editable = "one-ring-http" },
     { name = "one-ring-loop", editable = "one-ring-loop" },
 ]
 
@@ -526,6 +529,21 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "liburing", git = "https://github.com/YoSTEALTH/Liburing.git" },
+    { name = "structlog", specifier = ">=24.0" },
+]
+
+[[package]]
+name = "one-ring-http"
+version = "0.1.0"
+source = { editable = "one-ring-http" }
+dependencies = [
+    { name = "one-ring-loop" },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "one-ring-loop", editable = "one-ring-loop" },
     { name = "structlog", specifier = ">=24.0" },
 ]
 

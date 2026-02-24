@@ -30,6 +30,7 @@ site/
 # Secrets
 .env
 .env.*
+*.pem
 
 # OS
 .DS_Store

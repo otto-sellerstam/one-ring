@@ -12,6 +12,7 @@ packages:
 - one-ring-core
 - one-ring-loop
 - one-ring-asyncio
+- one-ring-http
 project_name: one-ring
 project_type: monorepo
 python_version: '3.14'

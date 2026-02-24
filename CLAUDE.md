@@ -14,6 +14,7 @@ Each package has its own `CLAUDE.md` with package-specific context.
 - **one-ring-core** — `one-ring-core/` (see `one-ring-core/CLAUDE.md`)
 - **one-ring-loop** — `one-ring-loop/` (see `one-ring-loop/CLAUDE.md`)
 - **one-ring-asyncio** — `one-ring-asyncio/` (see `one-ring-asyncio/CLAUDE.md`)
+- **one-ring-http** — `one-ring-http/` (see `one-ring-http/CLAUDE.md`)
 
 
 ## Tech Stack
@@ -68,6 +69,12 @@ one-ring/
 │   ├── CLAUDE.md               # Package-specific context
 │   ├── justfile                # Package-specific commands
 │   ├── src/one_ring_asyncio/
+│   └── tests/
+├── one-ring-http/
+│   ├── pyproject.toml          # Package metadata + build system
+│   ├── CLAUDE.md               # Package-specific context
+│   ├── justfile                # Package-specific commands
+│   ├── src/one_ring_http/
 │   └── tests/
 ├── .pre-commit-config.yaml
 ├── .github/workflows/ci.yml

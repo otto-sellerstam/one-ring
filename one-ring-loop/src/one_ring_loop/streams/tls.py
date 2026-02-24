@@ -34,13 +34,16 @@ class TLSStream:
 
     def close(self) -> Coro[None]:
         """Closes the TLS resouce."""
+        if self._closed:
+            return
+
         if self._standard_compatible:
             with contextlib.suppress(Exception):
                 yield from self._call_ssl_method(self._ssl_object.unwrap)
         yield from self._transport_stream.close()
         self._closed = True
 
-    def receive(self, max_bytes: int) -> Coro[bytes]:
+    def receive(self, max_bytes: int = 65536) -> Coro[bytes]:
         """Receives bytes from peer.
 
         Args:

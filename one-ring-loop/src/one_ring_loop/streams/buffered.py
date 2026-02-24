@@ -58,7 +58,7 @@ class BufferedByteReceiveStream:
         self._buffer = self._buffer[nbytes:]
         return data
 
-    def receive_until(self, delimiter: bytes, max_bytes: int) -> Coro[bytes]:
+    def receive_until(self, *, delimiter: bytes, max_bytes: int) -> Coro[bytes]:
         """Reads from the resouce until delimiter is found, or max bytes are read."""
         try:
             while len(self._buffer) < max_bytes and delimiter not in self._buffer:

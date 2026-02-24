@@ -46,7 +46,7 @@ test-pkg pkg *args:
 
 # Run tests with coverage (all packages)
 test-cov:
-    uv run pytest --cov=one-ring-core/src/one_ring_core --cov=one-ring-loop/src/one_ring_loop --cov=one-ring-asyncio/src/one_ring_asyncio --cov-report=term-missing --cov-report=html
+    uv run pytest --cov=one-ring-core/src/one_ring_core --cov=one-ring-loop/src/one_ring_loop --cov=one-ring-asyncio/src/one_ring_asyncio --cov=one-ring-http/src/one_ring_http --cov-report=term-missing --cov-report=html
 
 # Run tests with verbose output
 test-verbose *args:

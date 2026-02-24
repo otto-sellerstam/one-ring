@@ -8,4 +8,5 @@ pythonpath is already in effect) caches the correct module in sys.modules.
 
 import one_ring_asyncio  # noqa: F401
 import one_ring_core  # noqa: F401
+import one_ring_http  # noqa: F401
 import one_ring_loop  # noqa: F401
