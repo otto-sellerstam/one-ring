@@ -46,15 +46,15 @@ class Loop:
         """Runs the event loop until all tasks are complete."""
         with IOWorker() as worker:
             while self.tasks:
-                self._handle_cancellations(worker)
                 self._start_tasks()
+                self._register_io_cancellations(worker)
                 self._register_tasks(worker)
                 self._drive_unparked_tasks()
                 self._drive_completed_tasks(worker)
                 self._drive_checkpointed_tasks()
                 self._remove_done_tasks()
 
-    def _handle_cancellations(self, worker: IOWorker) -> None:  # noqa: C901
+    def _register_io_cancellations(self, worker: IOWorker) -> None:  # noqa: C901
         """Drains cancellation queue and registers and submits cancellations events."""
         should_submit = False
         while _local.cancel_queue:
