@@ -120,6 +120,8 @@ class Task[TResult]:
     def drive(self, value: IOCompletion | None) -> None:
         """Drives the attached generator coroutine forwards."""
         self.waiting = False
+        self.in_flight_op_id = None
+        self.awaiting_operation = None
         with self._handle_drive_exc():
             if value is None:
                 self.awaiting_operation = self.gen.send(None)
@@ -129,6 +131,8 @@ class Task[TResult]:
     def throw(self, exc: BaseException) -> None:
         """Throws an exception into the task's generator."""
         self.waiting = False
+        self.in_flight_op_id = None
+        self.awaiting_operation = None
         with self._handle_drive_exc():
             self.awaiting_operation = self.gen.throw(exc)
 

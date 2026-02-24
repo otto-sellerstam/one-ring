@@ -28,7 +28,7 @@ class Loop:
     """The one-ring-loop. Bask in it's glory."""
 
     # TODO: See if there's a nice way to consolidate the below three attributes.
-    """The tasks currently running."""
+    """The tasks currently running"""
     tasks: dict[TaskID, Task] = field(default_factory=dict, init=False)
 
     """Says which other tasks depends on a given task."""
@@ -46,16 +46,24 @@ class Loop:
         """Runs the event loop until all tasks are complete."""
         with IOWorker() as worker:
             while self.tasks:
-                self._start_tasks()
-                self._register_io_cancellations(worker)
-                self._register_tasks(worker)
-                self._drive_unparked_tasks()
-                self._drive_completed_tasks(worker)
-                self._drive_checkpointed_tasks()
-                self._remove_done_tasks()
+                self._start_tasks()  # Start new tasks
+                self._cancel_ready_tasks()  # Cancel tasks ready to be submitted
+                self._register_io_cancellations(worker)  # Register I/O cancellations
+                self._register_ready_tasks(worker)  # Submit new I/O
+                self._drive_unparked_tasks()  # Drive wakeups
+                self._drive_completed_tasks(worker)  # Drive kernel completions
+                self._drive_checkpointed_tasks()  # Drive checkpoints
+                self._remove_done_tasks()  # Clean up and wake dependent tasks
 
-    def _register_io_cancellations(self, worker: IOWorker) -> None:  # noqa: C901
-        """Drains cancellation queue and registers and submits cancellations events."""
+    def _start_tasks(self) -> None:
+        """Starts new tasks."""
+        unstarted_tasks = [task for task in self.tasks.values() if not task.started]
+        for task in unstarted_tasks:
+            with self.set_current_task(task):
+                task.start()
+
+    def _register_io_cancellations(self, worker: IOWorker) -> None:
+        """Drains cancellation queue and registers and submits IO cancellations ops."""
         should_submit = False
         while _local.cancel_queue:
             should_submit = True
@@ -66,51 +74,38 @@ class Loop:
             task = self.tasks[task_id]
             if isinstance(task.awaiting_operation, WaitsOn):
                 continue
-            if task.waiting:
-                for cancel_scope in reversed(task.cancel_scopes):
-                    if cancel_scope.cancelled or cancel_scope.shielded:
-                        break
-
-                if cancel_scope.cancelled:
-                    if isinstance(task.awaiting_operation, Park):
-                        # No kernel op, throw directly
-                        with self.set_current_task(task):
-                            task.throw(Cancelled())
-                    elif task.in_flight_op_id is not None:
-                        cancel_op = Cancel(target_identifier=task.in_flight_op_id)
-                        worker.register(cancel_op, _get_new_operation_id())
+            if task.waiting and self._should_cancel(task):
+                if isinstance(task.awaiting_operation, Park):
+                    # No kernel op, throw directly
+                    with self.set_current_task(task):
+                        task.throw(Cancelled())
+                elif task.in_flight_op_id is not None:
+                    cancel_op = Cancel(target_identifier=task.in_flight_op_id)
+                    worker.register(cancel_op, _get_new_operation_id())
 
         if should_submit:
             worker.submit()
 
-    def _start_tasks(self) -> None:
-        """Starts unstarted tasks."""
-        unstarted_tasks = [task for task in self.tasks.values() if not task.started]
-        for task in unstarted_tasks:
-            with self.set_current_task(task):
-                task.start()
-
-    # TODO: Simplify this method.
-    def _register_tasks(self, worker: IOWorker) -> None:  # noqa: C901, PLR0912
-        tasks_to_register = [
-            task
-            for task in self.tasks.values()
-            # TODO: I really need to merge this into one state.
-            if not task.waiting and task.started and not task.done
+    def _get_ready_tasks(self) -> list[Task]:
+        """Gets the tasks ready to register with the IO worker."""
+        return [
+            t for t in self.tasks.values() if t.started and not t.waiting and not t.done
         ]
-        for task in tasks_to_register:
+
+    def _cancel_ready_tasks(self) -> None:
+        """Cancel tasks with cancelled scopes, otherwise ready for I/O submition."""
+        for task in self._get_ready_tasks():
             # Check for cancelled, non-shielded cancel scopes
-            if not isinstance(task.awaiting_operation, WaitsOn):
-                for cancel_scope in reversed(task.cancel_scopes):
-                    if cancel_scope.cancelled:
-                        # The task is canceled, and the task has no current IO in
-                        # progress.
-                        with self.set_current_task(task):
-                            task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
+            if not isinstance(task.awaiting_operation, WaitsOn) and self._should_cancel(
+                task
+            ):
+                with self.set_current_task(task):
+                    task.throw(Cancelled(f"Task {task.task_id} was cancelled"))
 
-                    if cancel_scope.shielded:
-                        break
-
+    def _register_ready_tasks(self, worker: IOWorker) -> None:
+        """Register ready tasks with the I/O worker."""
+        ready_tasks = self._get_ready_tasks()
+        for task in ready_tasks:
             # If a .throw call finished the task, don't register it.
             if task.done:
                 continue
@@ -133,12 +128,11 @@ class Loop:
 
             task.waiting = True
 
-        if tasks_to_register:
+        if ready_tasks:
             worker.submit()
 
-    def _get_completed_operations(
-        self, worker: IOWorker
-    ) -> set[IOCompletion[IOResult]]:
+    def _collect_completions(self, worker: IOWorker) -> set[IOCompletion[IOResult]]:
+        """Waits for completions if all tasks are waiting, otherwise peeks."""
         completions: set[IOCompletion] = set()
 
         if all(task.waiting for task in self.tasks.values()):
@@ -160,7 +154,7 @@ class Loop:
         return completions
 
     def _drive_completed_tasks(self, worker: IOWorker) -> None:
-        completions = self._get_completed_operations(worker)
+        completions = self._collect_completions(worker)
         for completion in completions:
             op_id = completion.user_data
             task_id = self.operation_to_task.pop(op_id, None)
@@ -224,6 +218,16 @@ class Loop:
         self.tasks = {
             task_id: task for task_id, task in self.tasks.items() if not task.done
         }
+
+    def _should_cancel(self, task: Task) -> bool:
+        """Determines if a task should be cancelled from its cancel scopes."""
+        for cancel_scope in reversed(task.cancel_scopes):
+            if cancel_scope.cancelled:
+                return True
+            if cancel_scope.shielded:
+                return False
+
+        return False
 
     @property
     def current_task(self) -> Task:
