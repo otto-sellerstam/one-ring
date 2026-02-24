@@ -34,7 +34,7 @@ def static_handler(root: str | Path) -> HTTPHandler:
         for candidate in candidates:
             # Resolve and check it's still under root
             file_path = candidate.resolve()
-            if not file_path.is_relative_to(root_path):
+            if not file_path.is_relative_to(root_path) or not file_path.is_file():
                 continue
             try:
                 file = yield from open_file(file_path)

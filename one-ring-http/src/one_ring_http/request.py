@@ -58,7 +58,7 @@ class Request:
             header_name = key_val[0].decode().lower()
             header_val = key_val[1].decode()
 
-            if header_name in headers and header_name != "set-cookie":
+            if header_name in headers:
                 header_val = headers[header_name] + ", " + header_val
 
             headers[header_name] = header_val
