@@ -10,3 +10,5 @@ type HTTPHeaders = dict[str, str]
 type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 type HTTPHandler = Callable[[Request], Coro[Response] | Response]
+
+type HTTPMiddleware = Callable[[HTTPHandler], HTTPHandler]

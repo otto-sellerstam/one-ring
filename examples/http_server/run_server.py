@@ -19,12 +19,19 @@ ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain("dev-cert.pem", "dev-key.pem")
 
 
+router = Router()
+
+router.set_fallback(static_handler("./examples/http_server/static"))
+
+
+@router.register("GET", "/big")
 def big_response(request: Request) -> Response:
     """Sends a large response."""
     print("Received request", request)
     return Response(status_code=200, body=b"A" * 1_000_000)
 
 
+@router.register("GET", "/")
 def hello_world(request: Request) -> Coro[Response]:
     """Hello!"""
     print("Received request", request)
@@ -32,17 +39,11 @@ def hello_world(request: Request) -> Coro[Response]:
     return Response(status_code=200, headers={}, body=b"Hello world!")
 
 
+@router.register("POST", "/echo")
 def echo(request: Request) -> Response:
     """Echoes back body."""
     return Response(status_code=200, headers={}, body=request.body)
 
-
-router = Router()
-
-router.add("GET", "/", hello_world)
-router.add("POST", "/echo", echo)
-router.add("GET", "/big", big_response)
-router.set_fallback(static_handler("./examples/http_server/static"))
 
 server = HTTPServer(router=router, host="127.0.0.1", port=8000, ssl_context=ssl_context)
 

@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 from one_ring_http.response import Response
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from one_ring_http.request import Request
     from one_ring_http.typedef import HTTPHandler, HTTPMethod
 
@@ -37,3 +39,15 @@ class Router:
     def set_fallback(self, handler: HTTPHandler) -> None:
         """Sets fallback."""
         self._fallback = handler
+
+    def register(
+        self, method: HTTPMethod, path: str
+    ) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Decorator to register HTTP endpoints."""
+
+        def wrapper(func: HTTPHandler) -> HTTPHandler:
+            self.add(method, path, func)
+
+            return func
+
+        return wrapper
