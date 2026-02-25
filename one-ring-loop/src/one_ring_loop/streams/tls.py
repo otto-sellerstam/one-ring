@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from one_ring_loop.log import get_logger
+from one_ring_loop.streams.exceptions import EndOfStreamError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -50,6 +51,9 @@ class TLSStream:
             max_bytes: maximum bytes to receive
         """
         data = yield from self._call_ssl_method(self._ssl_object.read, max_bytes)
+        # Special handling needed here, since TLS can close using nonempty response.
+        if not data:
+            raise EndOfStreamError
         return data
 
     def send(self, data: bytes) -> Coro[None]:
@@ -113,8 +117,9 @@ class TLSStream:
             except ssl.SSLWantReadError:
                 if self._write_bio.pending:
                     yield from self._transport_stream.send(self._write_bio.read())
-                data = yield from self._transport_stream.receive()
-                if not data:
+                try:
+                    data = yield from self._transport_stream.receive()
+                except EndOfStreamError:
                     self._read_bio.write_eof()
                 else:
                     self._read_bio.write(data)

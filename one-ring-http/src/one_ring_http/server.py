@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING
 from one_ring_http.log import get_logger
 from one_ring_http.request import Request
 from one_ring_loop import TaskGroup
-from one_ring_loop.cancellation import move_on_after
+from one_ring_loop.cancellation import fail_after, move_on_after
+from one_ring_loop.exceptions import Cancelled
 from one_ring_loop.socketio import Connection, create_server
 from one_ring_loop.streams.buffered import BufferedByteStream
+from one_ring_loop.streams.exceptions import EndOfStreamError
 from one_ring_loop.streams.tls import TLSStream
 
 logger = get_logger()
@@ -51,6 +53,7 @@ class HTTPServer:
         """Handles an incoming connection."""
         try:
             try:
+                logger.info("Creating TLS connection")
                 tls_con = yield from TLSStream.wrap(
                     conn, ssl_context=self.ssl_context, standard_compatible=False
                 )
@@ -64,14 +67,30 @@ class HTTPServer:
             )
 
             try:
-                request = yield from Request.parse(buffered_stream)
-                handler = self.router.resolve(request.method, request.path)
-                result = handler(request)
-                if isinstance(result, Generator):
-                    response = yield from result
-                else:
-                    response = result
-                yield from buffered_stream.send(response.serialize())
+                keep_alive = True
+                while keep_alive:
+                    try:
+                        with fail_after(5):
+                            request = yield from Request.parse(buffered_stream)
+                    except Cancelled:
+                        break
+                    except EndOfStreamError:
+                        break
+
+                    handler = self.router.resolve(request.method, request.path)
+                    result = handler(request)
+                    if isinstance(result, Generator):
+                        response = yield from result
+                    else:
+                        response = result
+
+                    if request.headers.get("connection") == "close":
+                        response.headers["connection"] = "close"
+                        keep_alive = False
+                    else:
+                        response.headers["connection"] = "keep-alive"
+
+                    yield from buffered_stream.send(response.serialize())
             finally:
                 with move_on_after(3, shield=True):
                     yield from buffered_stream.close()
