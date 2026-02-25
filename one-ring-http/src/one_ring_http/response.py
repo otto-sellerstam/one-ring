@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,12 @@ class Response:
         content_length = len(self.body)
         serialized_response += f"content-length: {content_length}\r\n".encode()
 
+        if self.body and "content-type" not in self.headers:
+            serialized_response += b"content-type: text/plain; charset=utf-8\r\n"
+
+        serialized_response += f"date: {self.formatdate()}\r\n".encode()
+        serialized_response += b"server: one-ring-http/0.1.0\r\n"
+
         for header_name, header_val in self.headers.items():
             serialized_response += f"{header_name}: {header_val}\r\n".encode()
 
@@ -39,6 +46,11 @@ class Response:
         serialized_response += self.body
 
         return serialized_response
+
+    @staticmethod
+    def formatdate() -> str:
+        """Formats current date and time for HTTP date format."""
+        return datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
 class HTTPStatus(IntEnum):
