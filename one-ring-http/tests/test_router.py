@@ -2,18 +2,14 @@
 
 from typing import TYPE_CHECKING
 
-from one_ring_http.request import Request
-from one_ring_http.response import HTTPStatus, Response
+from one_ring_http.response import Response
 from one_ring_http.router import Router, page_not_found
+from one_ring_http.status import HTTPStatus
+
+from .conftest import make_request
 
 if TYPE_CHECKING:
-    from one_ring_http.typedef import HTTPMethod
-
-
-def _dummy_request(method: HTTPMethod = "GET", path: str = "/") -> Request:
-    return Request(
-        method=method, path=path, http_version="HTTP/1.1", headers={}, body=b""
-    )
+    from one_ring_http.request import Request
 
 
 def _ok(_: Request) -> Response:
@@ -37,7 +33,7 @@ class TestRouter:
     def test_resolve_unregistered_returns_fallback(self) -> None:
         router = Router()
         handler = router.resolve("GET", "/missing")
-        result = handler(_dummy_request())
+        result = handler(make_request())
         assert isinstance(result, Response)
         assert result.status_code == 404
 
@@ -65,8 +61,19 @@ class TestRouter:
         router.add("GET", "/x", _created)
         assert router.resolve("GET", "/x") is _created
 
+    def test_head_falls_back_to_get(self) -> None:
+        router = Router()
+        router.add("GET", "/hello", _ok)
+        assert router.resolve("HEAD", "/hello") is _ok
+
+    def test_explicit_head_takes_precedence(self) -> None:
+        router = Router()
+        router.add("GET", "/hello", _ok)
+        router.add("HEAD", "/hello", _created)
+        assert router.resolve("HEAD", "/hello") is _created
+
 
 class TestPageNotFound:
     def test_returns_404(self) -> None:
-        result = page_not_found(_dummy_request())
+        result = page_not_found(make_request())
         assert result.status_code == 404

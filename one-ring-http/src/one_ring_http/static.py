@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from one_ring_http.log import get_logger
-from one_ring_http.response import HTTPStatus, Response
+from one_ring_http.response import Response
+from one_ring_http.status import HTTPStatus
 from one_ring_loop.fileio import open_file  # or however your file I/O is exposed
 
 if TYPE_CHECKING:

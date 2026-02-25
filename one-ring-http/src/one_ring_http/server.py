@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 from one_ring_http.log import get_logger
 from one_ring_http.middleware import MiddlewareStack
 from one_ring_http.request import Request
-from one_ring_http.response import HTTPStatus, Response
+from one_ring_http.response import Response
+from one_ring_http.status import HTTPStatus
 from one_ring_loop import TaskGroup
 from one_ring_loop.cancellation import fail_after, move_on_after
 from one_ring_loop.exceptions import Cancelled

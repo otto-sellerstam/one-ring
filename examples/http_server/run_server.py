@@ -9,10 +9,11 @@ from one_ring_http.middleware import (
     exception_middleware,
     logging_middleware,
 )
-from one_ring_http.response import HTTPStatus, Response
+from one_ring_http.response import Response
 from one_ring_http.router import Router
 from one_ring_http.server import HTTPServer
 from one_ring_http.static import static_handler
+from one_ring_http.status import HTTPStatus
 from one_ring_loop import run
 from one_ring_loop.timerio import sleep
 
@@ -32,14 +33,14 @@ router.set_fallback(static_handler("./examples/http_server/static"))
 @router.get("/big")
 def big_response(_: Request) -> Response:
     """Sends a large response."""
-    return Response(status_code=HTTPStatus.OK, body=b"A" * 1_000_000)
+    return Response.text("A" * 1_000_000)
 
 
 @router.get("/")
 def hello_world(_: Request) -> Coro[Response]:
     """Hello!"""
     yield from sleep(1)
-    return Response(status_code=HTTPStatus.OK, body=b"Hello world!")
+    return Response.text("Hello world!")
 
 
 @router.post("/echo")

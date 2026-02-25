@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from one_ring_http.response import HTTPStatus, Response
+from one_ring_http.response import Response
+from one_ring_http.status import HTTPStatus
 
 if TYPE_CHECKING:
     from collections.abc import Callable
