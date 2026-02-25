@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from one_ring_http.log import get_logger
 from one_ring_http.middleware import MiddlewareStack
 from one_ring_http.request import Request
+from one_ring_http.response import HTTPStatus, Response
 from one_ring_loop import TaskGroup
 from one_ring_loop.cancellation import fail_after, move_on_after
 from one_ring_loop.exceptions import Cancelled
@@ -55,52 +56,70 @@ class HTTPServer:
             yield from tg.exit()
 
     def _handle_connection(self, conn: Connection) -> Coro[None]:
-        """Handles an incoming connection.
-
-        TODO: break up
-        """
+        """Handles an incoming connection."""
         try:
-            logger.info("Creating TLS connection")
-            tls_con = yield from TLSStream.wrap(
-                conn, ssl_context=self.ssl_context, standard_compatible=False
+            try:
+                tls_con = yield from TLSStream.wrap(
+                    conn, ssl_context=self.ssl_context, standard_compatible=False
+                )
+            except Exception:
+                with move_on_after(3, shield=True):
+                    yield from conn.close()
+                raise
+
+            buffered_stream = BufferedByteStream(
+                receive_stream=tls_con, send_stream=tls_con
             )
+
+            try:
+                keep_alive = True
+                while keep_alive:
+                    request, response = yield from self._handle_request(buffered_stream)
+
+                    if response is None:
+                        break
+
+                    if request is None:
+                        yield from buffered_stream.send(response.serialize())
+                        break
+
+                    if request.headers.get("connection") == "close":
+                        response.headers["connection"] = "close"
+                        keep_alive = False
+                    else:
+                        response.headers["connection"] = "keep-alive"
+
+                    yield from buffered_stream.send(response.serialize())
+            finally:
+                with move_on_after(3, shield=True):
+                    yield from buffered_stream.close()
         except Exception:
-            with move_on_after(3, shield=True):
-                yield from conn.close()
-            raise
+            logger.exception("An unexpected error occured. No response was sent")
 
-        buffered_stream = BufferedByteStream(
-            receive_stream=tls_con, send_stream=tls_con
-        )
-
+    def _handle_request(
+        self, stream: BufferedByteStream
+    ) -> Coro[tuple[Request | None, Response | None]]:
         try:
-            keep_alive = True
-            while keep_alive:
-                try:
-                    with fail_after(5):
-                        request = yield from Request.parse(buffered_stream)
-                except Cancelled:
-                    break
-                except EndOfStreamError:
-                    break
+            with fail_after(5):
+                request = yield from Request.parse(stream)
+        except Cancelled:
+            return None, None
+        except EndOfStreamError:
+            return None, None
+        except Exception:
+            logger.exception("Failed to parse request")
+            return None, Response(
+                status_code=HTTPStatus.BAD_REQUEST, body=b"Bad Request"
+            )
 
-                handler = self._get_handler(request.method, request.path)
-                result = handler(request)
-                if isinstance(result, Generator):
-                    response = yield from result
-                else:
-                    response = result
+        handler = self._get_handler(request.method, request.path)
+        result = handler(request)
+        if isinstance(result, Generator):
+            response = yield from result
+        else:
+            response = result
 
-                if request.headers.get("connection") == "close":
-                    response.headers["connection"] = "close"
-                    keep_alive = False
-                else:
-                    response.headers["connection"] = "keep-alive"
-
-                yield from buffered_stream.send(response.serialize())
-        finally:
-            with move_on_after(3, shield=True):
-                yield from buffered_stream.close()
+        return request, response
 
     def _get_handler(self, method: HTTPMethod, path: str) -> HTTPHandler:
         """Gets handler from router and applies all middleware.
