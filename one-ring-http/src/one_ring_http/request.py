@@ -11,7 +11,16 @@ if TYPE_CHECKING:
 
 logger = get_logger()
 
-ALLOWED_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+# Must match typedefs.HTTPMethod
+ALLOWED_HTTP_METHODS: set[HTTPMethod] = {
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+    "HEAD",
+}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -46,7 +55,7 @@ class Request:
         version = tokens[2].decode()
 
         if not cls.verify_http_method(method):
-            raise RuntimeError
+            raise RuntimeError("Unsupported HTTP method")
 
         # 2. Get headers, until reaching empty line
         headers: HTTPHeaders = {}

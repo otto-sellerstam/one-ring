@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from one_ring_http.response import Response
+from one_ring_http.response import HTTPStatus, Response
 from one_ring_http.router import Router
 from one_ring_http.server import HTTPServer
 from one_ring_loop import TaskGroup, run
@@ -73,7 +73,9 @@ class TestHTTPServer:
         port = unused_tcp_port
 
         router = Router()
-        router.add("GET", "/hello", lambda req: Response(status_code=200, body=b"Hi"))
+        router.add(
+            "GET", "/hello", lambda req: Response(status_code=HTTPStatus.OK, body=b"Hi")
+        )
 
         def entry() -> Coro[None]:
             tg = TaskGroup()
@@ -103,7 +105,7 @@ class TestHTTPServer:
 
         def async_handler(req: Request) -> Coro[Response]:
             yield from sleep(0)
-            return Response(status_code=200, body=b"async")
+            return Response(status_code=HTTPStatus.OK, body=b"async")
 
         router = Router()
         router.add("GET", "/async", async_handler)
@@ -138,7 +140,7 @@ class TestHTTPServer:
 
         def echo_handler(req: Request) -> Response:
             captured["body"] = req.body
-            return Response(status_code=200, body=req.body)
+            return Response(status_code=HTTPStatus.OK, body=req.body)
 
         router = Router()
         router.add("POST", "/echo", echo_handler)
@@ -206,7 +208,9 @@ class TestHTTPServer:
         port = unused_tcp_port
 
         router = Router()
-        router.set_fallback(lambda req: Response(status_code=418, body=b"teapot"))
+        router.set_fallback(
+            lambda req: Response(status_code=HTTPStatus.TEAPOT, body=b"teapot")
+        )
 
         def entry() -> Coro[None]:
             tg = TaskGroup()
@@ -240,7 +244,7 @@ class TestHTTPServer:
 
         def counting_handler(req: Request) -> Response:
             counter["n"] += 1
-            return Response(status_code=200, body=str(counter["n"]).encode())
+            return Response(status_code=HTTPStatus.OK, body=str(counter["n"]).encode())
 
         router = Router()
         router.add("GET", "/count", counting_handler)

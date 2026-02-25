@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from one_ring_http.request import Request
-from one_ring_http.response import Response
+from one_ring_http.response import HTTPStatus, Response
 from one_ring_http.router import Router, page_not_found
 
 if TYPE_CHECKING:
@@ -17,15 +17,15 @@ def _dummy_request(method: HTTPMethod = "GET", path: str = "/") -> Request:
 
 
 def _ok(_: Request) -> Response:
-    return Response(status_code=200)
+    return Response(status_code=HTTPStatus.OK)
 
 
 def _created(_: Request) -> Response:
-    return Response(status_code=201)
+    return Response(status_code=HTTPStatus.CREATED)
 
 
 def _teapot(_: Request) -> Response:
-    return Response(status_code=418)
+    return Response(status_code=HTTPStatus.TEAPOT)
 
 
 class TestRouter:

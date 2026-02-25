@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from one_ring_http.log import get_logger
-from one_ring_http.response import Response
+from one_ring_http.response import HTTPStatus, Response
 from one_ring_loop.fileio import open_file  # or however your file I/O is exposed
 
 if TYPE_CHECKING:
@@ -51,11 +51,11 @@ def static_handler(root: str | Path) -> HTTPHandler:
                 yield from file.close()
 
             return Response(
-                status_code=200,
+                status_code=HTTPStatus.OK,
                 headers={"content-type": content_type},
                 body=body.encode(),
             )
 
-        return Response(status_code=404, body=b"Not Found")
+        return Response(status_code=HTTPStatus.NOT_FOUND, body=b"Not Found")
 
     return handler

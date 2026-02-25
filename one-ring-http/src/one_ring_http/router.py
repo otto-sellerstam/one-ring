@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from one_ring_http.response import Response
+from one_ring_http.response import HTTPStatus, Response
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 def page_not_found(_: Request) -> Response:
     """Default handler for 404."""
-    return Response(status_code=404)
+    return Response(status_code=HTTPStatus.NOT_FOUND)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -51,3 +51,23 @@ class Router:
             return func
 
         return wrapper
+
+    def get(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Utility wrapper for GET method registration."""
+        return self.register("GET", path)
+
+    def post(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Utility wrapper for POST method registration."""
+        return self.register("POST", path)
+
+    def put(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Utility wrapper for PUT method registration."""
+        return self.register("PUT", path)
+
+    def patch(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Utility wrapper for PATCH method registration."""
+        return self.register("PATCH", path)
+
+    def delete(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+        """Utility wrapper for DELETE method registration."""
+        return self.register("DELETE", path)

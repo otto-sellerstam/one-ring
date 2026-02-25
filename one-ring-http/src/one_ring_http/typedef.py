@@ -7,7 +7,7 @@ from one_ring_loop.typedefs import Coro
 
 type HTTPHeaders = dict[str, str]
 
-type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
+type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 
 type HTTPHandler = Callable[[Request], Coro[Response] | Response]
 

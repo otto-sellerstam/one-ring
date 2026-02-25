@@ -19,9 +19,7 @@ class TestVerifyHTTPMethod:
     def test_valid_methods(self, method: str) -> None:
         assert Request.verify_http_method(method) is True
 
-    @pytest.mark.parametrize(
-        "method", ["get", "OPTIONS", "HEAD", "CONNECT", "", "INVALID"]
-    )
+    @pytest.mark.parametrize("method", ["get", "CONNECT", "", "INVALID"])
     def test_invalid_methods(self, method: str) -> None:
         assert Request.verify_http_method(method) is False
 
