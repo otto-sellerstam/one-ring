@@ -32,6 +32,8 @@ class Router:
     def resolve(self, method: HTTPMethod, path: str) -> HTTPHandler:
         """Returns the handler for a method and path."""
         handler = self._registry.get((method, path))
+        if handler is None and method == "HEAD":
+            handler = self._registry.get(("GET", path))
         if handler is None:
             return self._fallback
         return handler

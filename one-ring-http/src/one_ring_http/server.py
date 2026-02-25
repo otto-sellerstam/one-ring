@@ -80,6 +80,8 @@ class HTTPServer:
                         break
 
                     if request is None:
+                        # Only happens if request parsing failed.
+                        # Sends 400 status code response.
                         yield from buffered_stream.send(response.serialize())
                         break
 
@@ -89,7 +91,8 @@ class HTTPServer:
                     else:
                         response.headers["connection"] = "keep-alive"
 
-                    yield from buffered_stream.send(response.serialize())
+                    exclude_body = request.method == "HEAD"
+                    yield from buffered_stream.send(response.serialize(exclude_body))
             finally:
                 with move_on_after(3, shield=True):
                     yield from buffered_stream.close()

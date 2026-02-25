@@ -20,7 +20,7 @@ class Response:
     """HTTP body for the response"""
     body: bytes = field(default=b"")
 
-    def serialize(self) -> bytes:
+    def serialize(self, exclude_body: bool = False) -> bytes:  # noqa: FBT001, FBT002
         """Serializes a response for transfer."""
         # 1. Add first line
         serialized_response = (
@@ -40,10 +40,12 @@ class Response:
         for header_name, header_val in self.headers.items():
             serialized_response += f"{header_name}: {header_val}\r\n".encode()
 
+        # 3. Add delimiter
         serialized_response += b"\r\n"
 
-        # 3. Add body
-        serialized_response += self.body
+        # 4. Add body
+        if not exclude_body:
+            serialized_response += self.body
 
         return serialized_response
 
