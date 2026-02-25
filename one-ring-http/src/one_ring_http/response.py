@@ -1,7 +1,9 @@
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import IntEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
+
+from one_ring_http.status import HTTPStatus
 
 if TYPE_CHECKING:
     from one_ring_http.typedef import HTTPHeaders
@@ -54,34 +56,29 @@ class Response:
         """Formats current date and time for HTTP date format."""
         return datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
+    @classmethod
+    def html(cls, body: str, status_code: HTTPStatus = HTTPStatus.OK) -> Self:
+        """Utility function for HTML based response."""
+        return cls(
+            status_code=status_code,
+            headers={"content-type": "text/html; charset=utf-8"},
+            body=body.encode(),
+        )
 
-class HTTPStatus(IntEnum):
-    """HTTP status codes with reason phrases."""
+    @classmethod
+    def json(cls, data: dict, status_code: HTTPStatus = HTTPStatus.OK) -> Self:
+        """Utility function for JSON based response."""
+        return cls(
+            status_code=status_code,
+            headers={"content-type": "application/json"},
+            body=json.dumps(data).encode(),
+        )
 
-    OK = 200
-    CREATED = 201
-    NO_CONTENT = 204
-    NOT_MODIFIED = 304
-    BAD_REQUEST = 400
-    FORBIDDEN = 403
-    NOT_FOUND = 404
-    TEAPOT = 418
-    INTERNAL_SERVER_ERROR = 500
-
-    @property
-    def phrase(self) -> str:
-        """Gets the corresponding reason phrase."""
-        return _PHRASES[self]
-
-
-_PHRASES: dict[HTTPStatus, str] = {
-    HTTPStatus.OK: "OK",
-    HTTPStatus.CREATED: "Created succesfully",
-    HTTPStatus.NO_CONTENT: "No content",
-    HTTPStatus.NOT_MODIFIED: "Not modified",
-    HTTPStatus.BAD_REQUEST: "Bad request",
-    HTTPStatus.FORBIDDEN: "Forbidden",
-    HTTPStatus.NOT_FOUND: "Not found",
-    HTTPStatus.TEAPOT: "I'm a teapot",
-    HTTPStatus.INTERNAL_SERVER_ERROR: "Internal server error",
-}
+    @classmethod
+    def text(cls, body: str, status_code: HTTPStatus = HTTPStatus.OK) -> Self:
+        """Utility function for text based response."""
+        return cls(
+            status_code=status_code,
+            headers={"content-type": "text/plain; charset=utf-8"},
+            body=body.encode(),
+        )
