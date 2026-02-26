@@ -1,0 +1,22 @@
+# List available recipes
+default:
+    @just --list
+
+# Build the Rust extension (debug, for development)
+dev:
+    maturin develop
+
+# Build the Rust extension (release)
+dev-release:
+    maturin develop --release
+
+# Run tests (builds first)
+test: dev
+    uv run pytest tests/
+
+# Run Rust tests
+test-rust:
+    cargo test
+
+# Run all checks
+check: test-rust test

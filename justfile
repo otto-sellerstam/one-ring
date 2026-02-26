@@ -81,6 +81,7 @@ build pkg:
 
 # Build all publishable packages
 build-all:
+    uv build rusty-ring
     uv build one-ring-core
     uv build one-ring-loop
     uv build one-ring-http
@@ -91,6 +92,7 @@ publish pkg: (build pkg)
 
 # Publish all packages in dependency order
 publish-all: build-all
+    uv publish dist/rusty_ring-*
     uv publish dist/one_ring_core-*
     uv publish dist/one_ring_loop-*
     uv publish dist/one_ring_http-*
@@ -100,5 +102,6 @@ publish-all: build-all
 # Remove build artifacts and caches
 clean:
     rm -rf .ruff_cache .pytest_cache htmlcov .coverage dist build site
+    rm -rf rusty-ring/target
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true

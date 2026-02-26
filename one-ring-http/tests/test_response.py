@@ -22,7 +22,7 @@ class TestResponseSerialize:
             headers={"content-type": "text/html"},
             body=b"<h1>Not Found</h1>",
         ).serialize()
-        assert raw.startswith(b"HTTP/1.1 404 Not found\r\n")
+        assert raw.startswith(b"HTTP/1.1 404 Not Found\r\n")
         assert b"content-type: text/html\r\n" in raw
         assert b"content-length: 18\r\n" in raw
 

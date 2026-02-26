@@ -9,6 +9,7 @@ dependencies = [
     "one-ring-loop",
     "one-ring-asyncio",
     "one-ring-http",
+    "rusty-ring",
 ]
 
 [tool.uv.workspace]
@@ -17,14 +18,15 @@ members = [
     "one-ring-loop",
     "one-ring-asyncio",
     "one-ring-http",
+    "rusty-ring",
 ]
 
 [tool.uv.sources]
 one-ring-core = { workspace = true }
 one-ring-loop = { workspace = true }
 one-ring-asyncio = { workspace = true }
-liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
 one-ring-http = { workspace = true }
+rusty-ring = { workspace = true }
 
 # ── Development dependencies ────────────────────────────────────────────
 
@@ -51,7 +53,7 @@ docs = [
 [tool.ruff]
 target-version = "py314"
 line-length = 88
-src = ["one-ring-core/src", "one-ring-core/tests", "one-ring-loop/src", "one-ring-loop/tests", "one-ring-asyncio/src", "one-ring-asyncio/tests", "one-ring-http/src", "one-ring-http/tests"]
+src = ["one-ring-core/src", "one-ring-core/tests", "one-ring-loop/src", "one-ring-loop/tests", "one-ring-asyncio/src", "one-ring-asyncio/tests", "one-ring-http/src", "one-ring-http/tests", "rusty-ring/python", "rusty-ring/tests"]
 extend-exclude = ["docs"]
 
 [tool.ruff.lint]
@@ -104,13 +106,13 @@ ignore = [
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio", "one_ring_http"]
+known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio", "one_ring_http", "rusty_ring"]
 
 # ── Pyrefly ─────────────────────────────────────────────────────────────
 
 [tool.pyrefly]
-project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py", "one-ring-http/src/**/*.py", "one-ring-http/tests/**/*.py"]
-search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src"]
+project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py", "one-ring-http/src/**/*.py", "one-ring-http/tests/**/*.py", "rusty-ring/python/**/*.pyi", "rusty-ring/tests/**/*.py"]
+search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src", "rusty-ring/python"]
 replace-imports-with-any = ["liburing"]
 
 [tool.pyrefly.errors]
@@ -120,8 +122,8 @@ missing-override-decorator = true
 # ── Pytest ──────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
-testpaths = ["one-ring-core/tests", "one-ring-loop/tests", "one-ring-asyncio/tests", "one-ring-http/tests"]
-pythonpath = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src"]
+testpaths = ["one-ring-core/tests", "one-ring-loop/tests", "one-ring-asyncio/tests", "one-ring-http/tests", "rusty-ring/tests"]
+pythonpath = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src", "rusty-ring/python"]
 addopts = [
     "--strict-markers",
     "--strict-config",

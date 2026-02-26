@@ -28,6 +28,15 @@ if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
 
 
+@pytest.fixture
+def tmp_file_path(tmp_path: Path) -> Path:
+    """Provide a temporary file path for file I/O tests.
+
+    Uses pytest's built-in "tmp_path" fixture.
+    """
+    return tmp_path / "test_file.txt"
+
+
 @dataclass(slots=True, kw_only=True)
 class TimingContext:
     """Captures elapsed time and provides tolerance-aware assertions."""

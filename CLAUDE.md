@@ -15,11 +15,13 @@ Each package has its own `CLAUDE.md` with package-specific context.
 - **one-ring-loop** — `one-ring-loop/` (see `one-ring-loop/CLAUDE.md`)
 - **one-ring-asyncio** — `one-ring-asyncio/` (see `one-ring-asyncio/CLAUDE.md`)
 - **one-ring-http** — `one-ring-http/` (see `one-ring-http/CLAUDE.md`)
+- **rusty-ring** — `rusty-ring/` (see `rusty-ring/CLAUDE.md`) — Rust/PyO3 bindings, uses maturin (not copier-managed)
 
 
 ## Tech Stack
 
 - **Python 3.14+** with **uv workspaces** (single lockfile)
+- **Rust** with **PyO3 + maturin** for native io_uring bindings
 - **Ruff** for linting and formatting (ALL rules enabled, configured at root)
 - **Pyrefly** for static type checking (strict mode)
 - **Pytest** for testing (with coverage via pytest-cov)
@@ -76,6 +78,14 @@ one-ring/
 │   ├── justfile                # Package-specific commands
 │   ├── src/one_ring_http/
 │   └── tests/
+├── rusty-ring/                 # Rust/PyO3 native extension (maturin, NOT copier-managed)
+│   ├── Cargo.toml              # Rust dependencies
+│   ├── pyproject.toml          # maturin build backend
+│   ├── CLAUDE.md               # Package-specific context
+│   ├── justfile                # Package-specific commands
+│   ├── src/                    # Rust source (lib.rs)
+│   ├── python/rusty_ring/      # Python type stubs (maturin mixed layout)
+│   └── tests/
 ├── .pre-commit-config.yaml
 ├── .github/workflows/ci.yml
 └── .copier-answers.yml
@@ -83,4 +93,7 @@ one-ring/
 
 ## Adding a New Package
 
-Run `copier update` and add the new package name to the `packages` list.
+- **Python packages**: Run `copier update` and add the new package name to the `packages` list.
+- **Native extensions** (like `rusty-ring`): Manually create the package directory with maturin
+  build backend, and add it to the workspace in root `pyproject.toml`. These are not managed
+  by the copier template.

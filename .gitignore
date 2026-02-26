@@ -41,3 +41,7 @@ tmp/
 
 # Agents
 .claude
+
+# Rust
+target/
+*.so

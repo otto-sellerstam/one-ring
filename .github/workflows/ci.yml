@@ -17,6 +17,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.14
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install just
         uses: extractions/setup-just@v2
 

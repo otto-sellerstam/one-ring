@@ -9,6 +9,7 @@ members = [
     "one-ring-core",
     "one-ring-http",
     "one-ring-loop",
+    "rusty-ring",
 ]
 
 [[package]]
@@ -464,6 +465,7 @@ dependencies = [
     { name = "one-ring-core" },
     { name = "one-ring-http" },
     { name = "one-ring-loop" },
+    { name = "rusty-ring" },
 ]
 
 [package.dev-dependencies]
@@ -488,6 +490,7 @@ requires-dist = [
     { name = "one-ring-core", editable = "one-ring-core" },
     { name = "one-ring-http", editable = "one-ring-http" },
     { name = "one-ring-loop", editable = "one-ring-loop" },
+    { name = "rusty-ring", editable = "rusty-ring" },
 ]
 
 [package.metadata.requires-dev]
@@ -792,6 +795,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/5e/d4ccc8a27ecdb78116feac4935dfc39d1304536f4296168f91ed3ec00cd2/ruff-0.15.1-py3-none-win_amd64.whl", hash = "sha256:c820fef9dd5d4172a6570e5721704a96c6679b80cf7be41659ed439653f62336", size = 11599956, upload-time = "2026-02-12T23:09:01.157Z" },
     { url = "https://files.pythonhosted.org/packages/2a/07/5bda6a85b220c64c65686bc85bd0bbb23b29c62b3a9f9433fa55f17cda93/ruff-0.15.1-py3-none-win_arm64.whl", hash = "sha256:5ff7d5f0f88567850f45081fac8f4ec212be8d0b963e385c3f7d0d2eb4899416", size = 10874604, upload-time = "2026-02-12T23:09:05.515Z" },
 ]
+
+[[package]]
+name = "rusty-ring"
+version = "0.1.0"
+source = { editable = "rusty-ring" }
 
 [[package]]
 name = "six"

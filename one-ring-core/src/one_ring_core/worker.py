@@ -37,20 +37,6 @@ class IOWorker:
         self._add_submission(identifier, operation)
         return identifier
 
-    def _get_user_data(self) -> WorkerOperationID:
-        """Gets the smallest positive number which is unused.
-
-        TODO: Optimize.
-        """
-        user_data = 1
-        while user_data <= len(self._active_submissions):
-            if user_data not in self._active_submissions:
-                break
-
-            user_data += 1
-
-        return user_data
-
     def _add_submission(
         self, identifier: WorkerOperationID, operation: IOOperation
     ) -> None:

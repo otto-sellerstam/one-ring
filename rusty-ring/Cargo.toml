@@ -1,0 +1,13 @@
+[package]
+name = "rusty-ring"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "rusty_ring"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module"] }
+io-uring = "0.7"
+libc = "0.2"

@@ -1,0 +1,36 @@
+[project]
+name = "rusty-ring"
+version = "0.1.0"
+description = "Rust-based io_uring bindings via PyO3"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Otto Sellerstam", email = "ottosellerstam@gmail.com" },
+]
+readme = "README.md"
+keywords = ["io_uring", "rust", "pyo3", "async", "io", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/otto-sellerstam/one-ring"
+Repository = "https://github.com/otto-sellerstam/one-ring"
+Issues = "https://github.com/otto-sellerstam/one-ring/issues"
+
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "rusty_ring._rusty_ring"
