@@ -55,6 +55,7 @@ class Router:
 
         return wrapper
 
+    # Creating these dynamically messes with my type checker.
     def get(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for GET method registration."""
         return self.register("GET", path)
