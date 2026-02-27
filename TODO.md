@@ -2,22 +2,6 @@
 
 I don't want to add these as issues, as they're more of my own personal notes regarding project development, and features to add (so I don't forget).
 
-## Add multithreading support
-
-The Cython `liburing` wrapper holds the GIL during `waitng_cqe`, which means that other threads cannot run. Two potential fixes include:
-
-### 1. Fork `liburing`
-
-Add code to release the GIL
-
-### 2. Use Eventfd
-
-Don't call `wait_cqe`, but instead register the ring for eventfd, using
-
-```python
-io_uring_register_eventfd(ring: io_uring, fd: int) -> int
-```
-
 ## Implement flag wrappers
 
 The majority of all `liburing` calls take flags of different types. For both type safety, and utility, these flags should be wrapped in custom classes an exposed to be used by low level coroutines and the event loop. For example, `liburing.queue.io_uring_prep_cancel64` takes the following flags:
@@ -32,6 +16,8 @@ The majority of all `liburing` calls take flags of different types. For both typ
 - IORING_OP_ASYNC_CANCEL
 - IORING_REGISTER_SYNC_CANCEL
 ```
+
+**UPDATE**: Removed `liburing` dependency. To do the above for `rusty-ring`.
 
 ## Improve project directory structure
 

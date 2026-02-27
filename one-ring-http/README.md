@@ -45,13 +45,6 @@ run(server.serve())
 uv add one-ring-http
 ```
 
-**Note:** This package transitively requires `liburing >= 2025.8.26` (via one-ring-core),
-which is not yet published to PyPI. Until it is, install liburing from GitHub first:
-
-```bash
-uv add git+https://github.com/YoSTEALTH/Liburing.git
-```
-
 ## License
 
 MIT

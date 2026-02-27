@@ -21,13 +21,6 @@ Part of the [one-ring](https://github.com/otto-sellerstam/one-ring) project.
 uv add one-ring-core
 ```
 
-**Note:** This package requires `liburing >= 2025.8.26`, which is not yet published to PyPI.
-Until it is, install liburing from GitHub first:
-
-```bash
-uv add git+https://github.com/YoSTEALTH/Liburing.git
-```
-
 ## License
 
 MIT
