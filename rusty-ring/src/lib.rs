@@ -1,7 +1,7 @@
 use io_uring::{opcode, types, IoUring};
 use pyo3::exceptions::{ PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyByteArray;
+use pyo3::types::{ PyByteArray, PyBytes};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
@@ -49,7 +49,9 @@ struct Ring {
     ///
     /// The kernel holds raw pointers into these buffers. They must be keet
     /// alive and un-resized until the corresponding CQE is consumed.
-    pinned_buffers: HashMap<u64, Py<PyByteArray>>,
+    pinned_mutable_buffers: HashMap<u64, Py<PyByteArray>>,
+
+    pinned_immutable_buffers: HashMap<u64, Py<PyBytes>>,
 
     /// CStrings for paths passed to openat.
     pinned_paths: HashMap<u64, CString>,
@@ -90,8 +92,11 @@ impl Ring {
 
     /// Release any pinned resources associated with a completed user_data.
     fn release_pinned(&mut self, user_data: u64) {
-        self.pinned_buffers.remove(&user_data);
+        self.pinned_mutable_buffers.remove(&user_data);
+        self.pinned_immutable_buffers.remove(&user_data);
         self.pinned_paths.remove(&user_data);
+        self.pinned_sockaddr.remove(&user_data);
+        self.pinned_timespecs.remove(&user_data);
     }
 
     fn cqe_to_event(&mut self, cqe: &io_uring::cqueue::Entry) -> CompletionEvent {
@@ -113,7 +118,8 @@ impl Ring {
         Ring {
             ring: None,
             depth,
-            pinned_buffers: HashMap::new(),
+            pinned_mutable_buffers: HashMap::new(),
+            pinned_immutable_buffers: HashMap::new(),
             pinned_paths: HashMap::new(),
             pinned_timespecs: HashMap::new(),
             pinned_sockaddr: HashMap::new(),
@@ -135,8 +141,11 @@ impl Ring {
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
-        self.pinned_buffers.clear();
+        self.pinned_mutable_buffers.clear();
+        self.pinned_immutable_buffers.clear();
         self.pinned_paths.clear();
+        self.pinned_sockaddr.clear();
+        self.pinned_timespecs.clear();
         self.ring = None; // Drop triggers internal io_uring cleanup
         Ok(false)
     }
@@ -184,10 +193,11 @@ impl Ring {
      /// Submit a timeout (sleep).
      fn prep_timeout(&mut self, user_data: u64, sec: u64, nsec: u32) -> PyResult<()> {
         let timespec = types::Timespec::new().sec(sec).nsec(nsec);
-
-        let entry = opcode::Timeout::new(&timespec).build().user_data(user_data);
-
         self.pinned_timespecs.insert(user_data, timespec);
+        let ts = self.pinned_timespecs.get(&user_data).unwrap();
+
+        let entry = opcode::Timeout::new(ts).build().user_data(user_data);
+
         self.push_entry(entry)
     }
 
@@ -212,30 +222,30 @@ impl Ring {
             .build()
             .user_data(user_data);
 
-        self.pinned_buffers.insert(user_data, buf.unbind());
+        self.pinned_mutable_buffers.insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
     /// Prep a file write.
-    #[pyo3(signature = (user_data, fd, buf, nbytes, offset))]
+    #[pyo3(signature = (user_data, fd, buf, offset))]
     fn prep_write(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
         fd: RawFd,
-        buf: Bound<'_, PyByteArray>,
-        nbytes: u32,
+        buf: Bound<'_, PyBytes>,
         offset: u64,
     ) -> PyResult<()> {
-        let ptr = buf.data();
-        let len = nbytes.min(buf.len() as u32);
+        let data = buf.as_bytes();
+        let ptr = data.as_ptr();
+        let len = data.len() as u32;
 
         let entry = opcode::Write::new(types::Fd(fd), ptr.cast(), len)
             .offset(offset)
             .build()
             .user_data(user_data);
 
-        self.pinned_buffers.insert(user_data, buf.unbind());
+        self.pinned_immutable_buffers.insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
@@ -307,7 +317,7 @@ impl Ring {
 
     /// Prep a recv from a connected socket into `buf`.
     #[pyo3(signature = (user_data, fd, buf, flags = 0))]
-    fn prep_recv(
+    fn prep_socket_recv(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
@@ -323,34 +333,35 @@ impl Ring {
             .build()
             .user_data(user_data);
 
-        self.pinned_buffers.insert(user_data, buf.unbind());
+        self.pinned_mutable_buffers.insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
     /// Prep a send to a connected socket.
     #[pyo3(signature = (user_data, fd, buf, flags = 0))]
-    fn prep_send(
+    fn prep_socket_send(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
         fd: RawFd,
-        buf: Bound<'_, PyByteArray>,
+        buf: Bound<'_, PyBytes>,
         flags: u32,
     ) -> PyResult<()> {
-        let ptr = buf.data();
-        let len = buf.len() as u32;
+        let data = buf.as_bytes();
+        let ptr = data.as_ptr();
+        let len = data.len() as u32;
 
         let entry = opcode::Send::new(types::Fd(fd), ptr.cast(), len)
             .flags(flags as i32)
             .build()
             .user_data(user_data);
 
-        self.pinned_buffers.insert(user_data, buf.unbind());
+        self.pinned_immutable_buffers.insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
     /// Preps to bind to a socket.
-    fn prep_bind(
+    fn prep_socket_bind(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
@@ -372,7 +383,7 @@ impl Ring {
     }
 
     /// Prepares a socket to listen. Marks it as passive.
-    fn prep_listen(
+    fn prep_socket_listen(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
@@ -389,7 +400,7 @@ impl Ring {
 
     /// Prepares a socket to accept an incoming connection.
     /// TODO: Add sockaddr for kernel to fill, for logging who connected.
-    fn prep_accept(
+    fn prep_socket_accept(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
@@ -405,7 +416,7 @@ impl Ring {
     }
 
     /// Connects to a socket from a client.
-    fn prep_connect(
+    fn prep_socket_connect(
         &mut self,
         _py: Python<'_>,
         user_data: u64,
@@ -427,7 +438,7 @@ impl Ring {
     }
 
     /// Set socket options.
-    fn prep_setsockopt(
+    fn prep_socket_setopt(
         &mut self,
         user_data: u64,
         fd: RawFd,

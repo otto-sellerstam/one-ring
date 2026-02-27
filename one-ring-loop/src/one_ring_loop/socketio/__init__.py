@@ -13,6 +13,7 @@ from one_ring_core.operations import (
     SocketSetOpt,
 )
 from one_ring_loop._utils import _execute
+from one_ring_loop.streams.exceptions import EndOfStreamError
 
 if TYPE_CHECKING:
     from one_ring_loop.typedefs import Coro
@@ -32,7 +33,7 @@ def _set_options(fd: int) -> Coro[None]:
     return None
 
 
-def _bind(fd: int, host: bytes, port: int) -> Coro[None]:
+def _bind(fd: int, host: str, port: int) -> Coro[None]:
     yield from _execute(SocketBind(fd=fd, ip=host, port=port))
     return None
 
@@ -42,12 +43,12 @@ def _listen(fd: int) -> Coro[None]:
     return None
 
 
-def _connect(fd: int, host: bytes, port: int) -> Coro[None]:
+def _connect(fd: int, host: str, port: int) -> Coro[None]:
     yield from _execute(SocketConnect(fd=fd, ip=host, port=port))
     return None
 
 
-def create_server(host: bytes, port: int) -> Coro[Server]:
+def create_server(host: str, port: int) -> Coro[Server]:
     """Creates a socket (server), sets options, binds it and wraps in SocketListener."""
     fd = yield from _create()
     yield from _set_options(fd)
@@ -56,7 +57,7 @@ def create_server(host: bytes, port: int) -> Coro[Server]:
     return Server(fd=fd)
 
 
-def connect(host: bytes, port: int) -> Coro[Connection]:
+def connect(host: str, port: int) -> Coro[Connection]:
     """Connects to a listening socket."""
     fd = yield from _create()
     yield from _connect(fd, host, port)
@@ -96,6 +97,8 @@ class Connection:
     def receive(self, max_bytes: int = 65536) -> Coro[bytes]:
         """Reads data from socket."""
         result = yield from _execute(SocketRecv(fd=self.fd, size=max_bytes))
+        if not result.content:
+            raise EndOfStreamError
         return result.content
 
     def send(self, data: bytes, /) -> Coro[None]:

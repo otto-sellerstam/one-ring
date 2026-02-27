@@ -26,7 +26,7 @@ def test_sockets() -> None:
         try:
             # Set reuse addr + bind + listen
             w.register(SocketSetOpt(fd=server_fd), 2)
-            w.register(SocketBind(fd=server_fd, ip=b"127.0.0.1", port=9999), 3)
+            w.register(SocketBind(fd=server_fd, ip="127.0.0.1", port=9999), 3)
             w.submit()
             w.wait()
             w.wait()
@@ -42,7 +42,7 @@ def test_sockets() -> None:
 
             # Accept client
             w.register(SocketAccept(fd=server_fd), 6)
-            w.register(SocketConnect(fd=client_fd, ip=b"127.0.0.1", port=9999), 7)
+            w.register(SocketConnect(fd=client_fd, ip="127.0.0.1", port=9999), 7)
             w.submit()  # one syscall, kernel handles both
 
             # Two completions come back (order may vary)

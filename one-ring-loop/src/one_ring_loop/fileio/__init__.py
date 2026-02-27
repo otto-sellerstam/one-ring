@@ -36,5 +36,5 @@ def open_file(path: str | Path, mode: str = "r") -> Coro[File]:
     """Open file coroutine."""
     _path = str(path) if isinstance(path, Path) else path
 
-    result = yield from _execute(FileOpen(path=_path.encode(), mode=mode))
+    result = yield from _execute(FileOpen(path=_path, mode=mode))
     return File(fd=result.fd)

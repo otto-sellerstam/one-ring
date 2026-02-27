@@ -18,7 +18,7 @@ SERVER_MESSAGE = b"A new client connected!"
 class TestSocketIO:
     @pytest.mark.io
     def test_server_sends_to_client(self, run_coro, unused_tcp_port: int) -> None:
-        def _run_server(ip: bytes, port: int, event: Event) -> Coro:
+        def _run_server(ip: str, port: int, event: Event) -> Coro:
             server_socket = yield from create_server(ip, port)
             try:
                 event.set()
@@ -30,7 +30,7 @@ class TestSocketIO:
                 yield from server_socket.close()
 
         def entry() -> Coro:
-            ip = b"127.0.0.1"
+            ip = "127.0.0.1"
             port = unused_tcp_port
             event = Event()
             tg = TaskGroup()

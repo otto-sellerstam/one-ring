@@ -21,16 +21,12 @@ classifiers = [
 ]
 dependencies = [
     "structlog>=24.0",
-    "liburing>=2025.8.26",
 ]
 
 [project.urls]
 Homepage = "https://github.com/otto-sellerstam/one-ring"
 Repository = "https://github.com/otto-sellerstam/one-ring"
 Issues = "https://github.com/otto-sellerstam/one-ring/issues"
-
-[tool.uv.sources]
-liburing = { git = "https://github.com/YoSTEALTH/Liburing.git" }
 
 [build-system]
 requires = ["hatchling"]

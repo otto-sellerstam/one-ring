@@ -5,24 +5,11 @@ from __future__ import annotations
 import array
 import errno
 import os
+import socket
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
 
-from liburing import (  # Automatically set to typing.Any by config.
-    AT_FDCWD,
-    O_APPEND,
-    O_CREAT,
-    O_RDONLY,
-    O_RDWR,
-    O_WRONLY,
-    SO_REUSEADDR,
-    SOL_SOCKET,
-    SocketType,
-    timespec,
-)
-
-from one_ring_core.file import IOVec, MutableIOVec
 from one_ring_core.log import get_logger
 from one_ring_core.results import (
     CancelResult,
@@ -40,12 +27,13 @@ from one_ring_core.results import (
     SocketSendResult,
     SocketSetOptResult,
 )
-from one_ring_core.socket import AddressFamily, SocketAddress, SocketFamily
+from one_ring_core.socket import AddressFamily
+from rusty_ring import SockAddr
 
 if TYPE_CHECKING:
-    from one_ring_core._ring import CompletionEvent, SubmissionQueueEntry
     from one_ring_core.results import IOResult
     from one_ring_core.typedefs import WorkerOperationID
+    from rusty_ring import CompletionEvent, Ring
 
 
 logger = get_logger(__name__)
@@ -59,7 +47,7 @@ class IOOperation[T: IOResult](metaclass=ABCMeta):
     result_type: type[T]
 
     @abstractmethod
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
 
     @abstractmethod
@@ -84,10 +72,9 @@ class Cancel(IOOperation[CancelResult]):
     flags: int = 0
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
-        sqe.prep_cancel(self.target_identifier, self.flags)
-        return sqe.user_data
+        ring.prep_cancel(user_data, self.target_identifier, self.flags)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> CancelResult:
@@ -108,14 +95,15 @@ class FileOpen(IOOperation[FileOpenResult]):
     """Docstring."""
 
     result_type = FileOpenResult
-    path: bytes
+    path: str
     mode: str
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
-        sqe.prep_openat(self.path, self._mode_to_flags(self.mode), 0o660, AT_FDCWD)
-        return sqe.user_data
+        ring.prep_openat(
+            user_data, self.path, self._mode_to_flags(self.mode), 0o660, -100
+        )
 
     @override
     def extract(self, completion_event: CompletionEvent) -> FileOpenResult:
@@ -128,16 +116,16 @@ class FileOpen(IOOperation[FileOpenResult]):
     def _mode_to_flags(mode: str) -> int:
         """Docstring."""
         if "r" in mode and "w" in mode:
-            flags = O_RDWR
+            flags = 2  # read write
         elif "w" in mode:
-            flags = O_WRONLY
+            flags = 1  # write only
         else:
-            flags = O_RDONLY
+            flags = 0  # read only
 
         if "c" in mode:
-            flags |= O_CREAT
+            flags |= 64  # create if not exists
         if "a" in mode:
-            flags |= O_APPEND
+            flags |= 1024  # append
 
         return flags
 
@@ -156,24 +144,23 @@ class FileRead(IOOperation[FileReadResult]):
     offset: int = 0
 
     """Buffer to be filled with contents from read operation"""
-    _vector_buffer: MutableIOVec = field(init=False, repr=False)
+    _buffer: bytearray = field(init=False, repr=False)
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
         _size = self.size
         if _size is None:
             _size = os.fstat(self.fd).st_size  # Blocking syscall.
-        self._vector_buffer = MutableIOVec(bytearray(_size))
+        self._buffer = bytearray(_size)
 
-        sqe.prep_read(self.fd, self._vector_buffer, self.offset)
-        return sqe.user_data
+        ring.prep_read(user_data, self.fd, self._buffer, _size, self.offset)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> FileReadResult:
         """Extract fields from a completion queue event and wrap in correct type."""
         return FileReadResult(
-            content=bytes(self._vector_buffer.iov_base),
+            content=bytes(self._buffer),
             size=completion_event.res,
         )
 
@@ -192,11 +179,9 @@ class FileWrite(IOOperation[FileWriteResult]):
     offset: int = 0
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
-        vector_buffer = IOVec(self.data)
-        sqe.prep_write(self.fd, vector_buffer, self.offset)
-        return sqe.user_data
+        ring.prep_write(user_data, self.fd, self.data, self.offset)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> FileWriteResult:
@@ -214,10 +199,9 @@ class Close(IOOperation[CloseResult]):
     fd: int
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
-        sqe.prep_close(self.fd)
-        return sqe.user_data
+        ring.prep_close(user_data, self.fd)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> CloseResult:
@@ -234,11 +218,11 @@ class Sleep(IOOperation[SleepResult]):
     _timespec: Any = field(init=False, repr=False)
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
-        self._timespec = timespec(self.time)
-        sqe.prep_timeout(self._timespec)
-        return sqe.user_data
+        sec = int(self.time)
+        nsec = int((self.time - sec) * 1_000_000_000)
+        ring.prep_timeout(user_data, sec, nsec)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SleepResult:
@@ -257,19 +241,18 @@ class SocketCreate(IOOperation[SocketCreateResult]):
 
     result_type = SocketCreateResult
     """address family (AF_INET=IPv4, AF_INET6=IPv6, AF_UNIX=unix socket)"""
-    domain: int = SocketFamily.AF_INET
+    domain: int = AddressFamily.AF_INET
 
     """ransport protocol (SOCK_STREAM=TCP, SOCK_DGRAM=UDP)"""
-    sock_type: int = SocketType.SOCK_STREAM
+    sock_type: int = socket.SOCK_STREAM
 
     """further protocol specifications (0=obvious one chosen by kernel)"""
     protocol: int = 0
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Docstring."""
-        sqe.prep_socket(self.domain, self.sock_type, self.protocol)
-        return sqe.user_data
+        ring.prep_socket(user_data, self.domain, self.sock_type, self.protocol)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketCreateResult:
@@ -286,18 +269,17 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
     fd: int
 
     """Docstring"""
-    level: int = SOL_SOCKET
+    level: int = socket.SOL_SOCKET
 
     """Docstring"""
-    optname: int = SO_REUSEADDR
+    optname: int = socket.SO_REUSEADDR
 
     """Docstring"""
     val: array.array = field(default_factory=lambda: array.array("i", [1]))
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sqe.prep_setsocketopt(self.fd, self.val, self.level, self.optname)
-        return sqe.user_data
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
+        ring.prep_socket_setopt(user_data, self.fd)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSetOptResult:
@@ -314,26 +296,26 @@ class SocketBind(IOOperation[SocketBindResult]):
     fd: int
 
     """The IP to assign"""
-    ip: bytes
+    ip: str
 
     """The port to assign"""
     port: int
 
-    _sockaddr: SocketAddress = field(init=False)
+    _sockaddr: SockAddr = field(init=False)
 
     """Address family"""
     address_family: AddressFamily = AddressFamily.AF_INET
 
     def __post_init__(self) -> None:
         """Initializes socket address attribute."""
-        self._sockaddr = SocketAddress(
-            family=self.address_family, ip=self.ip, port=self.port
-        )
+        if self.address_family == AddressFamily.AF_INET:
+            self._sockaddr = SockAddr.v4(ip=self.ip, port=self.port)
+        else:
+            self._sockaddr = SockAddr.v6(ip=self.ip, port=self.port)
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sqe.prep_socket_bind(self.fd, self._sockaddr)
-        return sqe.user_data
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
+        ring.prep_socket_bind(user_data, self.fd, self._sockaddr)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketBindResult:
@@ -353,9 +335,8 @@ class SocketListen(IOOperation[SocketListenResult]):
     backlog: int = 128
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
-        sqe.prep_socket_listen(self.fd, self.backlog)
-        return sqe.user_data
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
+        ring.prep_socket_listen(user_data, self.fd, self.backlog)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketListenResult:
@@ -372,10 +353,9 @@ class SocketAccept(IOOperation[SocketAcceptResult]):
     fd: int
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Docstring."""
-        sqe.prep_socket_accept(self.fd)
-        return sqe.user_data
+        ring.prep_socket_accept(user_data, self.fd)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketAcceptResult:
@@ -402,10 +382,9 @@ class SocketRecv(IOOperation[SocketRecvResult]):
         self._buffer = bytearray(self.size)
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Docstring."""
-        sqe.prep_socket_recv(self.fd, self._buffer)
-        return sqe.user_data
+        ring.prep_socket_recv(user_data, self.fd, self._buffer)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketRecvResult:
@@ -428,10 +407,9 @@ class SocketSend(IOOperation[SocketSendResult]):
     data: bytes
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Docstring."""
-        sqe.prep_socket_send(self.fd, self.data)
-        return sqe.user_data
+        ring.prep_socket_send(user_data, self.fd, self.data)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSendResult:
@@ -448,7 +426,7 @@ class SocketConnect(IOOperation[SocketConnectResult]):
     fd: int
 
     """The IP to connect to"""
-    ip: bytes
+    ip: str
 
     """The port to connect to"""
     port: int
@@ -456,19 +434,19 @@ class SocketConnect(IOOperation[SocketConnectResult]):
     """The address family"""
     address_family: AddressFamily = AddressFamily.AF_INET
 
-    _sockaddr: SocketAddress = field(init=False)
+    _sockaddr: SockAddr = field(init=False)
 
     def __post_init__(self) -> None:
-        """Initializes socket family attribute."""
-        self._sockaddr = SocketAddress(
-            family=self.address_family, ip=self.ip, port=self.port
-        )
+        """Initializes socket address attribute."""
+        if self.address_family == AddressFamily.AF_INET:
+            self._sockaddr = SockAddr.v4(ip=self.ip, port=self.port)
+        else:
+            self._sockaddr = SockAddr.v6(ip=self.ip, port=self.port)
 
     @override
-    def prep(self, sqe: SubmissionQueueEntry) -> WorkerOperationID:
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Docstring."""
-        sqe.prep_connect(self.fd, self._sockaddr)
-        return sqe.user_data
+        ring.prep_socket_connect(user_data, self.fd, self._sockaddr)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketConnectResult:

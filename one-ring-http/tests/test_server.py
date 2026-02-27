@@ -54,7 +54,7 @@ def _client_exchange(
     head: bool = False,
 ) -> Coro[RawHTTPResponse]:
     """Connect to server, send request, return parsed response."""
-    conn = yield from connect(b"127.0.0.1", port)
+    conn = yield from connect("127.0.0.1", port)
     try:
         tls_conn = yield from TLSStream.wrap(
             conn, ssl_context=client_ctx, server_side=False, hostname=b"127.0.0.1"

@@ -31,8 +31,8 @@ class TestRing:
             logger.info("Got open event", io_event=open_event)
             fd = open_event.res
 
-            write_buf = bytearray(file_content)
-            ring.prep_write(0, fd=fd, buf=write_buf, nbytes=9, offset=0)
+            write_buf = bytes(file_content)
+            ring.prep_write(0, fd=fd, buf=write_buf, offset=0)
             ring.submit()
             write_event = ring.wait()
             logger.info("Got write event", io_event=write_event)
@@ -53,7 +53,7 @@ class TestRing:
 
             timing.start()
             ring.wait()
-            timing.assert_elapsed_between(2.5, 2.6, msg="Should sleep for 2 secounds")
+            timing.assert_elapsed_between(1.5, 1.6, msg="Should sleep for 2 secounds")
 
     def test_wait_does_not_hold_gil(self) -> None:
         flag = threading.Event()

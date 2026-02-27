@@ -46,7 +46,7 @@ class HTTPServer:
 
     def serve(self) -> Coro[None]:
         """Starts the server."""
-        server = yield from create_server(self.host.encode(), self.port)
+        server = yield from create_server(self.host, self.port)
         tg = TaskGroup()
         tg.enter()
         try:

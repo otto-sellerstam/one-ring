@@ -21,7 +21,7 @@ logger = get_logger()
 class TLSStream:
     """Stream wrapper that encrypts sent/decrypts received data."""
 
-    _transport_stream: TransportStream
+    _transport_stream: TransportStream[bytes]
 
     _ssl_object: ssl.SSLObject
 

@@ -50,7 +50,7 @@ class TestTLSStream:
                 with CancelScope(shielded=True):
                     yield from server.close()
 
-        ip = b"127.0.0.1"
+        ip = "127.0.0.1"
         port = unused_tcp_port
         server_ctx, client_ctx = ssl_contexts
         event = Event()

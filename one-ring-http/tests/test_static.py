@@ -41,10 +41,10 @@ def _client_get(
     port: int, client_ctx: ssl.SSLContext, path: str
 ) -> Coro[RawHTTPResponse]:
     """Send a GET request and return parsed response."""
-    conn = yield from connect(b"127.0.0.1", port)
+    conn = yield from connect("127.0.0.1", port)
     try:
         tls_conn = yield from TLSStream.wrap(
-            conn, ssl_context=client_ctx, server_side=False, hostname=b"127.0.0.1"
+            conn, ssl_context=client_ctx, server_side=False, hostname="127.0.0.1"
         )
     except BaseException:
         with move_on_after(3, shield=True):

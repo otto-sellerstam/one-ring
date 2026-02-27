@@ -6,9 +6,9 @@ import os
 from contextlib import ExitStack
 from typing import TYPE_CHECKING, Self
 
-from one_ring_core._ring import CompletionEvent, Ring, SubmissionQueueEntry
 from one_ring_core.log import get_logger
 from one_ring_core.results import IOCompletion, IOResult
+from rusty_ring import CompletionEvent, Ring
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -32,7 +32,7 @@ class IOWorker:
         identifier: WorkerOperationID,
     ) -> WorkerOperationID:
         """Registers operation in the SQ."""
-        operation.prep(self._get_sqe(identifier))
+        operation.prep(identifier, self._ring)
 
         self._add_submission(identifier, operation)
         return identifier
@@ -117,6 +117,3 @@ class IOWorker:
             user_data=user_data,
             result=result,
         )
-
-    def _get_sqe(self, identifier: WorkerOperationID) -> SubmissionQueueEntry:
-        return self._ring.get_sqe(identifier)

@@ -113,7 +113,6 @@ known-first-party = ["one_ring_core", "one_ring_loop", "one_ring_asyncio", "one_
 [tool.pyrefly]
 project-includes = ["one-ring-core/src/**/*.py", "one-ring-core/tests/**/*.py", "one-ring-loop/src/**/*.py", "one-ring-loop/tests/**/*.py", "one-ring-asyncio/src/**/*.py", "one-ring-asyncio/tests/**/*.py", "one-ring-http/src/**/*.py", "one-ring-http/tests/**/*.py", "rusty-ring/python/**/*.pyi", "rusty-ring/tests/**/*.py"]
 search-path = ["one-ring-core/src", "one-ring-loop/src", "one-ring-asyncio/src", "one-ring-http/src", "rusty-ring/python"]
-replace-imports-with-any = ["liburing"]
 
 [tool.pyrefly.errors]
 unannotated-return = true
@@ -130,7 +129,7 @@ addopts = [
     "-ra",
     "--import-mode=importlib",
 ]
-timeout = 30
+timeout = 10
 markers = [
     "io: marks tests that perform real file or socket I/O via io_uring",
 ]
