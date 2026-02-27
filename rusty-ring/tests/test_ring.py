@@ -1,3 +1,6 @@
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 from one_ring_loop.log import get_logger
@@ -40,3 +43,35 @@ class TestRing:
             read_event = ring.wait()
             logger.info("Got read event", io_event=read_event)
             assert bytes(read_buf) == file_content
+
+    def test_timeout(self, timing) -> None:
+        with Ring(32) as ring:
+            sleep_for_sec = 1
+            sleep_for_nsec = int(5e8)  # 0.5 seconds.
+            ring.prep_timeout(0, sleep_for_sec, sleep_for_nsec)
+            ring.submit()
+
+            timing.start()
+            ring.wait()
+            timing.assert_elapsed_between(2.5, 2.6, msg="Should sleep for 2 secounds")
+
+    def test_wait_does_not_hold_gil(self) -> None:
+        flag = threading.Event()
+
+        def background() -> None:
+            logger.info("Sleeping for 0.5 seconds")
+            time.sleep(0.5)
+            logger.info("Setting flag")
+            flag.set()
+
+        with Ring(32) as ring, ThreadPoolExecutor(max_workers=2) as executor:
+            ring.prep_timeout(0, sec=1, nsec=0)
+            ring.submit()
+
+            logger.info("Submitting background function")
+            executor.submit(background)
+            logger.info("Waiting on ring timeout")
+            ring.wait()
+            logger.info("Finished waiting")
+
+            assert flag.is_set()
