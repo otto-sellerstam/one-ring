@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from contextlib import ExitStack
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self
 
 from one_ring_core.log import get_logger
@@ -20,11 +21,17 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+@dataclass(slots=True, kw_only=True)
 class IOWorker:
     """Docstring."""
 
-    def __init__(self) -> None:
-        self._active_submissions: dict[WorkerOperationID, IOOperation] = {}
+    _active_submissions: dict[WorkerOperationID, IOOperation] = field(
+        default_factory=dict, init=False
+    )
+
+    _ring: Ring = field(init=False)
+
+    _stack: ExitStack = field(init=False)
 
     def register(
         self,
