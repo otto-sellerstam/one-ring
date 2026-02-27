@@ -38,6 +38,7 @@ dev = [
     "ruff>=0.9",
     "pyrefly>=0.53",
     "pre-commit>=4.0",
+    "maturin>=1.8,<2.0",
 ]
 docs = [
     "mkdocs-material>=9.0",

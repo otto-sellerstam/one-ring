@@ -4,11 +4,11 @@ default:
 
 # Build the Rust extension (debug, for development)
 dev:
-    maturin develop
+    uv run maturin develop
 
 # Build the Rust extension (release)
 dev-release:
-    maturin develop --release
+    uv run maturin develop --release
 
 # Run tests (builds first)
 test: dev
