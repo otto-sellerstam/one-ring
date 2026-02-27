@@ -33,11 +33,12 @@ impl CompletionEvent {
 /// Owns an io_uring instance and exposes prep/submit/complete operations.
 ///
 /// Usage from Python:
-///
+/// ```python
 ///     with Ring(depth=32) as ring:
 ///         ring.prep_nop(user_data=1)
 ///         ring.submit()
 ///         cqe = ring.wait()
+/// ```
 ///
 #[pyclass]
 struct Ring {
@@ -45,9 +46,9 @@ struct Ring {
     depth: u32,
 
     /// Buffers that are currently owned by the kernel (between submit and CQE).
-    /// Keyed by user_data so they can be released when the CQE arrives.
+    /// Keyed by `user_data` so they can be released when the CQE arrives.
     ///
-    /// The kernel holds raw pointers into these buffers. They must be keet
+    /// The kernel holds raw pointers into these buffers. They must be kept
     /// alive and un-resized until the corresponding CQE is consumed.
     pinned_mutable_buffers: HashMap<u64, Py<PyByteArray>>,
 
@@ -64,11 +65,6 @@ struct Ring {
 }
 
 impl Ring {
-    //fn uring(&self) -> PyResult<&IoUring> {
-    //    self.ring
-    //        .as_ref()
-    //        .ok_or_else(|| PyRuntimeError::new_err("Ring not initialised (use as context manager)"))
-    //}
 
     fn uring_mut(&mut self) -> PyResult<&mut IoUring> {
         self.ring
@@ -76,8 +72,7 @@ impl Ring {
             .ok_or_else(|| PyRuntimeError::new_err("Ring not initialised (use as context manager)"))
     }
 
-    /// Push an entry onto the SQ.  Panics if SQ is full: caller should size
-    /// the ring appropriately or check before calling.
+    /// Push an entry onto the SQ. Panics if SQ is full.
     fn push_entry(&mut self, entry: io_uring::squeue::Entry) -> PyResult<()> {
         let ring = self.uring_mut()?;
         // SAFETY: we trust that the caller has set up the entry correctly and
