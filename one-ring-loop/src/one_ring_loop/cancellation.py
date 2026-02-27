@@ -32,8 +32,10 @@ def fail_after(delay: float, *, shield: bool = False) -> Generator[CancelScope]:
     finished = False
     with CancelScope(shielded=shield) as scope:
         task = _create_standalone_task(cancellation_task(scope), None, None)
-        yield scope
-        task.current_cancel_scope().cancel()
+        try:
+            yield scope
+        finally:
+            task.current_cancel_scope().cancel()
     finished = True
 
 

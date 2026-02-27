@@ -49,6 +49,7 @@ struct Ring {
     ///
     /// The kernel holds raw pointers into these buffers. They must be kept
     /// alive and un-resized until the corresponding CQE is consumed.
+    /// TODO: Consolidate into 1.
     pinned_mutable_buffers: HashMap<u64, Py<PyByteArray>>,
 
     pinned_immutable_buffers: HashMap<u64, Py<PyBytes>>,
@@ -61,6 +62,9 @@ struct Ring {
 
     /// Addresses for sockets.
     pinned_sockaddr: HashMap<u64, SockAddrInner>,
+
+    /// Socket option values. Boxed for pointer stability across HashMap resizes.
+    pinned_sockopts: HashMap<u64, Box<i32>>,
 }
 
 impl Ring {
@@ -90,6 +94,7 @@ impl Ring {
         self.pinned_paths.remove(&user_data);
         self.pinned_sockaddr.remove(&user_data);
         self.pinned_timespecs.remove(&user_data);
+        self.pinned_sockopts.remove(&user_data);
     }
 
     fn cqe_to_event(&mut self, cqe: &io_uring::cqueue::Entry) -> CompletionEvent {
@@ -116,6 +121,7 @@ impl Ring {
             pinned_paths: HashMap::new(),
             pinned_timespecs: HashMap::new(),
             pinned_sockaddr: HashMap::new(),
+            pinned_sockopts: HashMap::new(),
         }
     }
 
@@ -139,6 +145,7 @@ impl Ring {
         self.pinned_paths.clear();
         self.pinned_sockaddr.clear();
         self.pinned_timespecs.clear();
+        self.pinned_sockopts.clear();
         self.ring = None; // Drop triggers internal io_uring cleanup
         Ok(false)
     }
@@ -416,12 +423,15 @@ impl Ring {
     /// Set socket options.
     fn prep_socket_setopt(&mut self, user_data: u64, fd: RawFd) -> PyResult<()> {
         // TODO: Hardcoded for now.
-        let optval: i32 = 1; // SO_REUSEADDR value
+        let optval = Box::new(1i32); // SO_REUSEADDR value
+        self.pinned_sockopts.insert(user_data, optval);
+        let pinned = self.pinned_sockopts.get(&user_data).unwrap();
+
         let entry = opcode::SetSockOpt::new(
             types::Fd(fd),
             libc::SOL_SOCKET as u32,
             libc::SO_REUSEADDR as u32,
-            &optval as *const i32 as *const libc::c_void,
+            pinned.as_ref() as *const i32 as *const libc::c_void,
             std::mem::size_of::<i32>() as u32,
         )
         .build()
