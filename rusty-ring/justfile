@@ -14,9 +14,21 @@ dev-release:
 test: dev
     uv run pytest tests/
 
+# Run clippy linter (fail on warnings)
+clippy:
+    cargo clippy -- -D warnings
+
+# Format Rust code
+fmt:
+    cargo fmt
+
+# Check Rust formatting
+fmt-check:
+    cargo fmt -- --check
+
 # Run Rust tests
 test-rust:
     cargo test
 
 # Run all checks
-check: test-rust test
+check: clippy fmt-check test-rust test

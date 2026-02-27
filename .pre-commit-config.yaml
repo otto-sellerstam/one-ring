@@ -8,6 +8,12 @@ repos:
       # Run the formatter.
       - id: ruff-format
 
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        args: ["--manifest-path", "rusty-ring/Cargo.toml", "--"]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

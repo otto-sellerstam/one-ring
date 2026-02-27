@@ -52,10 +52,16 @@ test-cov:
 test-verbose *args:
     uv run pytest -v {{args}}
 
+### Rust ################################################################
+
+# Run all Rust checks (clippy + fmt-check + tests)
+rust-check:
+    just -f rusty-ring/justfile check
+
 ### Combined ############################################################
 
-# Run all checks (lint + format-check + typecheck + test)
-check: lint format-check typecheck test
+# Run all checks (lint + format-check + typecheck + rust-check + test)
+check: lint format-check typecheck rust-check test
 
 ### Docs ###############################################################
 

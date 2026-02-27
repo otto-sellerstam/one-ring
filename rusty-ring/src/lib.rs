@@ -1,12 +1,11 @@
-use io_uring::{opcode, types, IoUring};
-use pyo3::exceptions::{ PyRuntimeError, PyValueError};
+use io_uring::{IoUring, opcode, types};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{ PyByteArray, PyBytes};
+use pyo3::types::{PyByteArray, PyBytes};
 use std::collections::HashMap;
 use std::ffi::CString;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::RawFd;
-use libc;
-use std::net::{ Ipv4Addr, Ipv6Addr };
 
 /// A completed io_uring operation.
 #[pyclass(frozen)]
@@ -65,7 +64,6 @@ struct Ring {
 }
 
 impl Ring {
-
     fn uring_mut(&mut self) -> PyResult<&mut IoUring> {
         self.ring
             .as_mut()
@@ -168,10 +166,8 @@ impl Ring {
     /// Blocking wait for at least one CQE and return it.
     fn wait(&mut self, py: Python<'_>) -> PyResult<CompletionEvent> {
         let ring = self.uring_mut()?;
-        py.detach(|| {
-            ring.submit_and_wait(1)
-        })
-        .map_err(|e| PyRuntimeError::new_err(format!("io_uring_wait failed: {e}")))?;
+        py.detach(|| ring.submit_and_wait(1))
+            .map_err(|e| PyRuntimeError::new_err(format!("io_uring_wait failed: {e}")))?;
         let cqe = ring
             .completion()
             .next()
@@ -185,8 +181,8 @@ impl Ring {
         self.push_entry(entry)
     }
 
-     /// Submit a timeout (sleep).
-     fn prep_timeout(&mut self, user_data: u64, sec: u64, nsec: u32) -> PyResult<()> {
+    /// Submit a timeout (sleep).
+    fn prep_timeout(&mut self, user_data: u64, sec: u64, nsec: u32) -> PyResult<()> {
         let timespec = types::Timespec::new().sec(sec).nsec(nsec);
         self.pinned_timespecs.insert(user_data, timespec);
         let ts = self.pinned_timespecs.get(&user_data).unwrap();
@@ -240,7 +236,8 @@ impl Ring {
             .build()
             .user_data(user_data);
 
-        self.pinned_immutable_buffers.insert(user_data, buf.unbind());
+        self.pinned_immutable_buffers
+            .insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
@@ -254,8 +251,8 @@ impl Ring {
         mode: u32,
         dir_fd: RawFd,
     ) -> PyResult<()> {
-        let c_path = CString::new(path)
-            .map_err(|_| PyRuntimeError::new_err("Path contains null byte"))?;
+        let c_path =
+            CString::new(path).map_err(|_| PyRuntimeError::new_err("Path contains null byte"))?;
         let ptr = c_path.as_ptr();
 
         let entry = opcode::OpenAt::new(types::Fd(dir_fd), ptr)
@@ -279,12 +276,7 @@ impl Ring {
 
     /// Prep a cancellation of another in-flight operation.
     #[pyo3(signature = (user_data, target_user_data, flags = 0))]
-    fn prep_cancel(
-        &mut self,
-        user_data: u64,
-        target_user_data: u64,
-        flags: i32,
-    ) -> PyResult<()> {
+    fn prep_cancel(&mut self, user_data: u64, target_user_data: u64, flags: i32) -> PyResult<()> {
         let entry = opcode::AsyncCancel::new(target_user_data)
             .build()
             .user_data(user_data);
@@ -351,7 +343,8 @@ impl Ring {
             .build()
             .user_data(user_data);
 
-        self.pinned_immutable_buffers.insert(user_data, buf.unbind());
+        self.pinned_immutable_buffers
+            .insert(user_data, buf.unbind());
         self.push_entry(entry)
     }
 
@@ -368,11 +361,9 @@ impl Ring {
         let stored = self.pinned_sockaddr.get(&user_data).unwrap();
         let (ptr, len) = stored.as_ptr_and_len();
 
-        let entry = opcode::Bind::new(
-            types::Fd(fd),
-            ptr,
-            len,
-        ).build().user_data(user_data);
+        let entry = opcode::Bind::new(types::Fd(fd), ptr, len)
+            .build()
+            .user_data(user_data);
 
         self.push_entry(entry)
     }
@@ -385,27 +376,19 @@ impl Ring {
         fd: RawFd,
         backlog: i32,
     ) -> PyResult<()> {
-        let entry = opcode::Listen::new(
-            types::Fd(fd),
-            backlog,
-        ).build().user_data(user_data);
+        let entry = opcode::Listen::new(types::Fd(fd), backlog)
+            .build()
+            .user_data(user_data);
 
         self.push_entry(entry)
     }
 
     /// Prepares a socket to accept an incoming connection.
     /// TODO: Add sockaddr for kernel to fill, for logging who connected.
-    fn prep_socket_accept(
-        &mut self,
-        _py: Python<'_>,
-        user_data: u64,
-        fd: RawFd,
-    ) -> PyResult<()> {
-        let entry = opcode::Accept::new(
-            types::Fd(fd),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        ).build().user_data(user_data);
+    fn prep_socket_accept(&mut self, _py: Python<'_>, user_data: u64, fd: RawFd) -> PyResult<()> {
+        let entry = opcode::Accept::new(types::Fd(fd), std::ptr::null_mut(), std::ptr::null_mut())
+            .build()
+            .user_data(user_data);
 
         self.push_entry(entry)
     }
@@ -423,30 +406,26 @@ impl Ring {
         let stored = self.pinned_sockaddr.get(&user_data).unwrap();
         let (ptr, len) = stored.as_ptr_and_len();
 
-        let entry = opcode::Connect::new(
-            types::Fd(fd),
-            ptr,
-            len,
-        ).build().user_data(user_data);
+        let entry = opcode::Connect::new(types::Fd(fd), ptr, len)
+            .build()
+            .user_data(user_data);
 
         self.push_entry(entry)
     }
 
     /// Set socket options.
-    fn prep_socket_setopt(
-        &mut self,
-        user_data: u64,
-        fd: RawFd,
-    ) -> PyResult<()> {
+    fn prep_socket_setopt(&mut self, user_data: u64, fd: RawFd) -> PyResult<()> {
         // TODO: Hardcoded for now.
-        let optval: i32 = 1;  // SO_REUSEADDR value
+        let optval: i32 = 1; // SO_REUSEADDR value
         let entry = opcode::SetSockOpt::new(
             types::Fd(fd),
             libc::SOL_SOCKET as u32,
             libc::SO_REUSEADDR as u32,
             &optval as *const i32 as *const libc::c_void,
             std::mem::size_of::<i32>() as u32,
-        ).build().user_data(user_data);
+        )
+        .build()
+        .user_data(user_data);
 
         self.push_entry(entry)
     }
@@ -475,7 +454,6 @@ impl SockAddrInner {
     }
 }
 
-
 #[pyclass]
 #[derive(Clone)]
 struct SockAddr {
@@ -486,30 +464,32 @@ struct SockAddr {
 impl SockAddr {
     #[staticmethod]
     fn v4(ip: &str, port: u16) -> PyResult<Self> {
-        let addr_parsed: Ipv4Addr = ip.parse()
-            .map_err(|e|
-                PyValueError::new_err(format!("Invalid IPv4 address: {e}"))
-            )?;
+        let addr_parsed: Ipv4Addr = ip
+            .parse()
+            .map_err(|e| PyValueError::new_err(format!("Invalid IPv4 address: {e}")))?;
 
         let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
         addr.sin_family = libc::AF_INET as u16;
         addr.sin_addr.s_addr = u32::from_ne_bytes(addr_parsed.octets());
         addr.sin_port = port.to_be();
-        Ok(SockAddr { inner: SockAddrInner::V4(addr) })
+        Ok(SockAddr {
+            inner: SockAddrInner::V4(addr),
+        })
     }
 
     #[staticmethod]
     fn v6(ip: &str, port: u16) -> PyResult<Self> {
-        let addr_parsed: Ipv6Addr = ip.parse()
-            .map_err(|e|
-                PyValueError::new_err(format!("Invalid IPv6 address: {e}"))
-            )?;
+        let addr_parsed: Ipv6Addr = ip
+            .parse()
+            .map_err(|e| PyValueError::new_err(format!("Invalid IPv6 address: {e}")))?;
 
         let mut addr: libc::sockaddr_in6 = unsafe { std::mem::zeroed() };
         addr.sin6_family = libc::AF_INET6 as u16;
         addr.sin6_addr.s6_addr = addr_parsed.octets();
         addr.sin6_port = port.to_be();
-        Ok(SockAddr { inner: SockAddrInner::V6(addr) })
+        Ok(SockAddr {
+            inner: SockAddrInner::V6(addr),
+        })
     }
 }
 
