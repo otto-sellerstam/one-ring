@@ -1,4 +1,4 @@
-"""This will be a docstring."""
+"""This wrapper around rusty-ring, with type defined operations."""
 
 from __future__ import annotations
 

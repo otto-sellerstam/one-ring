@@ -40,7 +40,7 @@ class FileOpenResult(IOResult):
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
-class FileReadResult(IOResult):
+class ReadResult(IOResult):
     """Result of a file read operation."""
 
     content: bytes
@@ -48,7 +48,7 @@ class FileReadResult(IOResult):
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
-class FileWriteResult(IOResult):
+class WriteResult(IOResult):
     """Result of a file write operation."""
 
     size: int

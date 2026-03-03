@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from one_ring_core.operations import Close, FileOpen, FileRead, FileWrite
+from one_ring_core.operations import Close, FileOpen, Read, Write
 from one_ring_loop._utils import _execute
 
 if TYPE_CHECKING:
@@ -17,13 +17,13 @@ class File:
 
     def read(self) -> Coro[str]:
         """Read file low-level coroutine."""
-        result = yield from _execute(FileRead(fd=self.fd))
+        result = yield from _execute(Read(fd=self.fd))
         return result.content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:
         """Write file low-level coroutine."""
         _data = data.encode() if isinstance(data, str) else data
-        result = yield from _execute(FileWrite(fd=self.fd, data=_data))
+        result = yield from _execute(Write(fd=self.fd, data=_data))
         return result.size
 
     def close(self) -> Coro[None]:

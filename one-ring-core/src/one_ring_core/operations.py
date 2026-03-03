@@ -15,8 +15,7 @@ from one_ring_core.results import (
     CancelResult,
     CloseResult,
     FileOpenResult,
-    FileReadResult,
-    FileWriteResult,
+    ReadResult,
     SleepResult,
     SocketAcceptResult,
     SocketBindResult,
@@ -26,6 +25,7 @@ from one_ring_core.results import (
     SocketRecvResult,
     SocketSendResult,
     SocketSetOptResult,
+    WriteResult,
 )
 from one_ring_core.socket import AddressFamily
 from rusty_ring import SockAddr
@@ -131,10 +131,10 @@ class FileOpen(IOOperation[FileOpenResult]):
 
 
 @dataclass(slots=True, kw_only=True)
-class FileRead(IOOperation[FileReadResult]):
+class Read(IOOperation[ReadResult]):
     """File descriptor for the regular file."""
 
-    result_type = FileReadResult
+    result_type = ReadResult
     fd: int
 
     """None will read the whole file"""
@@ -151,25 +151,25 @@ class FileRead(IOOperation[FileReadResult]):
         """Prepares a submission queue entry for the SQ."""
         _size = self.size
         if _size is None:
-            _size = os.fstat(self.fd).st_size  # Blocking syscall.
+            _size = os.fstat(self.fd).st_size  # TODO: Blocking syscall. Use statx.
         self._buffer = bytearray(_size)
 
         ring.prep_read(user_data, self.fd, self._buffer, _size, self.offset)
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> FileReadResult:
+    def extract(self, completion_event: CompletionEvent) -> ReadResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        return FileReadResult(
+        return ReadResult(
             content=bytes(self._buffer),
             size=completion_event.res,
         )
 
 
 @dataclass(slots=True, kw_only=True)
-class FileWrite(IOOperation[FileWriteResult]):
+class Write(IOOperation[WriteResult]):
     """File descriptor for the regular file."""
 
-    result_type = FileWriteResult
+    result_type = WriteResult
     fd: int
 
     """Data to write to file"""
@@ -184,9 +184,9 @@ class FileWrite(IOOperation[FileWriteResult]):
         ring.prep_write(user_data, self.fd, self.data, self.offset)
 
     @override
-    def extract(self, completion_event: CompletionEvent) -> FileWriteResult:
+    def extract(self, completion_event: CompletionEvent) -> WriteResult:
         """Extract fields from a completion queue event and wrap in correct type."""
-        return FileWriteResult(
+        return WriteResult(
             size=completion_event.res,
         )
 
