@@ -44,7 +44,7 @@ _executor = ThreadPoolExecutor()
 # Architecture idea:
 # 1. Create queue to put thread results into.
 # 2. Park thread tasks waiting on result.
-# 3. Have event loop check queue, and send results to relevant tasks.
+# 3. Have event loop check queue, and send results to relevant tasks waiting on threads.
 # This achieves a solution using a single eventfd, at the cost of more complexity in the
 # loop.
 def run_in_thread[T, **P](
@@ -54,13 +54,17 @@ def run_in_thread[T, **P](
     eventfd = EventFD()
 
     def wrapper() -> T:
-        ret = func(*args, **kwargs)
-        eventfd.notify()
+        try:
+            ret = func(*args, **kwargs)
+        finally:
+            eventfd.notify()
         return ret
 
     fut = _executor.submit(wrapper)
-    yield from eventfd.wait()
-    ret = fut.result()
-    eventfd.close()
+    try:
+        yield from eventfd.wait()
+        ret = fut.result()
+    finally:
+        eventfd.close()
 
     return ret
