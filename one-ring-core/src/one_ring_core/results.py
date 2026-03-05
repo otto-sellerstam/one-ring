@@ -41,7 +41,7 @@ class FileOpenResult(IOResult):
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class StatxResult(IOResult):
-    """Result of a file open operation."""
+    """Result of a statx file metadata operation."""
 
     size: int
     mtime_sec: int

@@ -19,3 +19,6 @@ def test_statx() -> None:
 
     assert isinstance(res, StatxResult)
     assert Path(path).stat().st_size == res.size
+    assert Path(path).stat().st_ino == res.ino
+    assert Path(path).stat().st_mode == res.mode
+    assert int(Path(path).stat().st_mtime) == res.mtime_sec

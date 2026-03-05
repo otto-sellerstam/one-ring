@@ -16,7 +16,11 @@ class File:
     fd: int
 
     def read(self, size: int | None = None) -> Coro[str]:
-        """Read file low-level coroutine."""
+        """Read file low-level coroutine.
+
+        Args:
+            size: number of bytes to fetch. Fetches the whole file if None.
+        """
         _size = size
         if _size is None:
             # Async fetching of size from metadata using statx.
@@ -27,7 +31,11 @@ class File:
         return result.content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:
-        """Write file low-level coroutine."""
+        """Write file low-level coroutine.
+
+        Args:
+            data: the data to write to the file.
+        """
         _data = data.encode() if isinstance(data, str) else data
         result = yield from _execute(Write(fd=self.fd, data=_data))
         return result.size
