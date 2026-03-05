@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from one_ring_http.middleware import cors_middleware
 from one_ring_http.response import Response
 from one_ring_http.status import HTTPStatus
+from one_ring_loop.lowlevel import checkpoint
 from one_ring_loop.timerio import sleep
 
 from .conftest import make_request
@@ -14,8 +15,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from one_ring_http.request import Request
-    from one_ring_http.typedef import HTTPHandler
+    from one_ring_http.typedef import AsyncHTTPHandler, HTTPHandler
     from one_ring_loop.typedefs import Coro
+
+
+def _dummy_handler_factory(body: bytes = b"") -> AsyncHTTPHandler:
+    def handler(request: Request) -> Coro[Response]:
+        yield from checkpoint()
+        return Response(status_code=HTTPStatus.OK, body=body)
+
+    return handler
 
 
 def _invoke_handler(handler: HTTPHandler, request: Request) -> Coro[Response]:
@@ -32,7 +41,7 @@ class TestCorsMiddleware:
     def test_options_returns_204_with_preflight_headers(
         self, run_coro: Callable[[Coro], object]
     ) -> None:
-        wrapped = cors_middleware()(lambda req: Response(status_code=HTTPStatus.OK))
+        wrapped = cors_middleware()(_dummy_handler_factory())
         request = make_request(method="OPTIONS")
 
         def entry() -> Coro[None]:
@@ -54,9 +63,7 @@ class TestCorsMiddleware:
     def test_adds_origin_header_to_get_response(
         self, run_coro: Callable[[Coro], object]
     ) -> None:
-        wrapped = cors_middleware()(
-            lambda req: Response(status_code=HTTPStatus.OK, body=b"hello")
-        )
+        wrapped = cors_middleware()(_dummy_handler_factory(b"hello"))
         request = make_request(method="GET")
 
         def entry() -> Coro[None]:
@@ -69,9 +76,7 @@ class TestCorsMiddleware:
 
     def test_custom_allow_origin(self, run_coro: Callable[[Coro], object]) -> None:
         origin = "https://example.com"
-        wrapped = cors_middleware(origin)(
-            lambda req: Response(status_code=HTTPStatus.OK)
-        )
+        wrapped = cors_middleware(origin)(_dummy_handler_factory())
 
         def entry() -> Coro[None]:
             options_resp = yield from _invoke_handler(

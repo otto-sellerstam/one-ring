@@ -1,6 +1,6 @@
-from collections.abc import Generator
+import inspect
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeIs
 
 from one_ring_http.log import get_logger
 from one_ring_http.middleware import MiddlewareStack
@@ -14,6 +14,7 @@ from one_ring_loop.socketio import Connection, create_server
 from one_ring_loop.streams.buffered import BufferedByteStream
 from one_ring_loop.streams.exceptions import EndOfStreamError
 from one_ring_loop.streams.tls import TLSStream
+from one_ring_loop.threadpool import run_in_thread
 
 logger = get_logger()
 
@@ -21,7 +22,11 @@ if TYPE_CHECKING:
     import ssl
 
     from one_ring_http.router import Router
-    from one_ring_http.typedef import HTTPHandler, HTTPMethod
+    from one_ring_http.typedef import (
+        AsyncHTTPHandler,
+        HTTPHandler,
+        HTTPMethod,
+    )
     from one_ring_loop.typedefs import Coro
 
 
@@ -117,21 +122,36 @@ class HTTPServer:
             )
 
         handler = self._get_handler(request.method, request.path)
-        result = handler(request)
-        if isinstance(result, Generator):
-            response = yield from result
-        else:
-            response = result
+        response = yield from handler(request)
 
         return request, response
 
-    def _get_handler(self, method: HTTPMethod, path: str) -> HTTPHandler:
+    def _get_handler(self, method: HTTPMethod, path: str) -> AsyncHTTPHandler:
         """Gets handler from router and applies all middleware.
 
         TODO: don't apply middleware on each request...
         """
         handler = self.router.resolve(method, path)
+        handler = self._ensure_async_handler(handler)
+
         for middleware in self.middleware:
             handler = middleware(handler)
 
         return handler
+
+    def _ensure_async_handler(self, handler: HTTPHandler) -> AsyncHTTPHandler:
+        """Ensures a handler is async by wrapping it in thread pool if not."""
+        if self._is_async_handler(handler):
+            return handler
+
+        sync_handler = handler  # For propery type narrowing in closure.
+
+        def threaded_handler(request: Request) -> Coro[Response]:
+            response = yield from run_in_thread(sync_handler, request)
+            return response
+
+        return threaded_handler
+
+    def _is_async_handler(self, handler: HTTPHandler) -> TypeIs[AsyncHTTPHandler]:
+        """TypeIs wrapper for proper type narrowing of HTTP handler types."""
+        return inspect.isgeneratorfunction(handler)

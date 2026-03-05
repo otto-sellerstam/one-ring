@@ -1,6 +1,5 @@
 import functools
 import time
-from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -12,7 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from one_ring_http.request import Request
-    from one_ring_http.typedef import HTTPHandler, HTTPMiddleware
+    from one_ring_http.typedef import AsyncHTTPHandler, HTTPMiddleware
     from one_ring_loop.typedefs import Coro
 
 logger = get_logger()
@@ -38,17 +37,14 @@ class MiddlewareStack:
         return reversed(self._middleware)
 
 
-def exception_middleware(handler: HTTPHandler) -> HTTPHandler:
+def exception_middleware(handler: AsyncHTTPHandler) -> AsyncHTTPHandler:
     """Logs incoming requests after parsing."""
 
     @functools.wraps(handler)
-    def wrapper(request: Request) -> Coro[Response] | Response:
+    def wrapper(request: Request) -> Coro[Response]:
         try:
             result = handler(request)
-            if isinstance(result, Generator):
-                response = yield from result
-            else:
-                response = result
+            response = yield from result
         except Exception:
             logger.exception()
             response = Response(
@@ -61,18 +57,15 @@ def exception_middleware(handler: HTTPHandler) -> HTTPHandler:
     return wrapper
 
 
-def logging_middleware(handler: HTTPHandler) -> HTTPHandler:
+def logging_middleware(handler: AsyncHTTPHandler) -> AsyncHTTPHandler:
     """Logs incoming requests after parsing."""
 
     @functools.wraps(handler)
-    def wrapper(request: Request) -> Coro[Response] | Response:
+    def wrapper(request: Request) -> Coro[Response]:
         logger.info("Incoming request", path=request.path, method=request.method)
         start_time = time.monotonic()
         result = handler(request)
-        if isinstance(result, Generator):
-            response = yield from result
-        else:
-            response = result
+        response = yield from result
         logger.info(
             "Sending response",
             path=request.path,
@@ -91,8 +84,8 @@ def cors_middleware(allow_origin: str = "*") -> HTTPMiddleware:
     Should be registered with router last to be first middleware applied to request.
     """
 
-    def middleware(handler: HTTPHandler) -> HTTPHandler:
-        def wrapper(request: Request) -> Coro[Response] | Response:
+    def middleware(handler: AsyncHTTPHandler) -> AsyncHTTPHandler:
+        def wrapper(request: Request) -> Coro[Response]:
             if request.method == "OPTIONS":
                 return Response(
                     status_code=HTTPStatus.NO_CONTENT,
@@ -106,10 +99,7 @@ def cors_middleware(allow_origin: str = "*") -> HTTPMiddleware:
                     },
                 )
             result = handler(request)
-            if isinstance(result, Generator):
-                response = yield from result
-            else:
-                response = result
+            response = yield from result
             response.headers["access-control-allow-origin"] = allow_origin
             return response
 

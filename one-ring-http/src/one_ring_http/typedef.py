@@ -9,6 +9,7 @@ type HTTPHeaders = dict[str, str]
 
 type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 
-type HTTPHandler = Callable[[Request], Coro[Response] | Response]
-
-type HTTPMiddleware = Callable[[HTTPHandler], HTTPHandler]
+type SyncHTTPHandler = Callable[[Request], Response]
+type AsyncHTTPHandler = Callable[[Request], Coro[Response]]
+type HTTPHandler = SyncHTTPHandler | AsyncHTTPHandler
+type HTTPMiddleware = Callable[[AsyncHTTPHandler], AsyncHTTPHandler]

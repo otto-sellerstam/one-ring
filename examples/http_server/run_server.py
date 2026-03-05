@@ -1,6 +1,7 @@
 """Showcases `one_ring_http` to build a simple HTTP server."""
 
 import ssl
+import time
 from typing import TYPE_CHECKING
 
 from one_ring_http.middleware import (
@@ -39,6 +40,13 @@ def big_response(_: Request) -> Response:
 def hello_world(_: Request) -> Coro[Response]:
     """Hello!"""
     yield from sleep(1)
+    return Response.text("Hello world!")
+
+
+@router.get("/sync-sleep")
+def sync_sleep(_: Request) -> Coro[Response]:
+    """Send concurrent requests to test thread pooling."""
+    time.sleep(1)
     return Response.text("Hello world!")
 
 
