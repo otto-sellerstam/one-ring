@@ -25,7 +25,10 @@ class MiddlewareStack:
     _middleware: list[HTTPMiddleware] = field(default_factory=list, init=False)
 
     def register(self, func: HTTPMiddleware) -> HTTPMiddleware:
-        """Registers a middleware function."""
+        """Registers a middleware function.
+
+        First registered is innermost, last registered outermost.
+        """
         self._middleware.append(func)
 
         return func
@@ -83,7 +86,10 @@ def logging_middleware(handler: HTTPHandler) -> HTTPHandler:
 
 
 def cors_middleware(allow_origin: str = "*") -> HTTPMiddleware:
-    """Returns a middleware for CORS given an allowed origin."""
+    """Returns a middleware for CORS given an allowed origin.
+
+    Should be registered with router last to be first middleware applied to request.
+    """
 
     def middleware(handler: HTTPHandler) -> HTTPHandler:
         def wrapper(request: Request) -> Coro[Response] | Response:

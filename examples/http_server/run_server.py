@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain("dev-cert.pem", "dev-key.pem")
 
-
 router = Router()
 
 router.set_fallback(static_handler("./examples/http_server/static"))
