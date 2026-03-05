@@ -29,6 +29,12 @@ impl CompletionEvent {
     }
 }
 
+#[allow(dead_code)]
+struct StatxRequest {
+    path: CString,
+    statxbuf: Py<StatxBuffer>,
+}
+
 /// Owns an io_uring instance and exposes prep/submit/complete operations.
 ///
 /// Usage from Python:
@@ -65,6 +71,9 @@ struct Ring {
 
     /// Socket option values. Boxed for pointer stability across HashMap resizes.
     pinned_sockopts: HashMap<u64, Box<i32>>,
+
+    // Statx buffers
+    pinned_statx_buffers: HashMap<u64, StatxRequest>,
 }
 
 impl Ring {
@@ -95,6 +104,7 @@ impl Ring {
         self.pinned_sockaddr.remove(&user_data);
         self.pinned_timespecs.remove(&user_data);
         self.pinned_sockopts.remove(&user_data);
+        self.pinned_statx_buffers.remove(&user_data);
     }
 
     fn cqe_to_event(&mut self, cqe: &io_uring::cqueue::Entry) -> CompletionEvent {
@@ -122,6 +132,7 @@ impl Ring {
             pinned_timespecs: HashMap::new(),
             pinned_sockaddr: HashMap::new(),
             pinned_sockopts: HashMap::new(),
+            pinned_statx_buffers: HashMap::new(),
         }
     }
 
@@ -146,6 +157,7 @@ impl Ring {
         self.pinned_sockaddr.clear();
         self.pinned_timespecs.clear();
         self.pinned_sockopts.clear();
+        self.pinned_statx_buffers.clear();
         self.ring = None; // Drop triggers internal io_uring cleanup
         Ok(false)
     }
@@ -221,6 +233,41 @@ impl Ring {
             .user_data(user_data);
 
         self.pinned_mutable_buffers.insert(user_data, buf.unbind());
+        self.push_entry(entry)
+    }
+
+    // Prepares statx for metadata extraction.
+    fn prep_statx(
+        &mut self,
+        user_data: u64,
+        path: &str,
+        buf: Bound<'_, StatxBuffer>,
+        flags: i32,
+        mask: u32,
+        dir_fd: RawFd,
+    ) -> PyResult<()> {
+        let c_path =
+            CString::new(path).map_err(|_| PyRuntimeError::new_err("Path contains null byte"))?;
+        let path_ptr = c_path.as_ptr();
+
+        let mut guard = buf.borrow_mut();
+        let statxbuf_ptr = &mut *guard.inner as *mut libc::statx as *mut io_uring::types::statx;
+
+        let entry = opcode::Statx::new(types::Fd(dir_fd), path_ptr, statxbuf_ptr)
+            .flags(flags)
+            .mask(mask)
+            .build()
+            .user_data(user_data);
+
+        drop(guard);
+
+        self.pinned_statx_buffers.insert(
+            user_data,
+            StatxRequest {
+                path: c_path,
+                statxbuf: buf.unbind(),
+            },
+        );
         self.push_entry(entry)
     }
 
@@ -503,10 +550,129 @@ impl SockAddr {
     }
 }
 
+#[pyclass]
+#[derive(Clone, Debug)]
+struct StatxBuffer {
+    inner: Box<libc::statx>,
+}
+
+#[pymethods]
+impl StatxBuffer {
+    #[new]
+    fn new() -> Self {
+        StatxBuffer {
+            inner: Box::new(unsafe { std::mem::zeroed() }),
+        }
+    }
+
+    #[getter]
+    fn size(&self) -> u64 {
+        self.inner.stx_size
+    }
+
+    #[getter]
+    fn mtime_sec(&self) -> i64 {
+        self.inner.stx_mtime.tv_sec
+    }
+
+    #[getter]
+    fn ino(&self) -> u64 {
+        self.inner.stx_ino
+    }
+
+    #[getter]
+    fn mode(&self) -> u32 {
+        self.inner.stx_mode as u32
+    }
+}
+
+fn register_constants(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // File open flags
+    m.add("O_RDONLY", libc::O_RDONLY)?;
+    m.add("O_WRONLY", libc::O_WRONLY)?;
+    m.add("O_RDWR", libc::O_RDWR)?;
+    m.add("O_CREAT", libc::O_CREAT)?;
+    m.add("O_TRUNC", libc::O_TRUNC)?;
+    m.add("O_APPEND", libc::O_APPEND)?;
+    m.add("O_NONBLOCK", libc::O_NONBLOCK)?;
+    m.add("O_CLOEXEC", libc::O_CLOEXEC)?;
+
+    // File mode bits (permissions)
+    m.add("S_IRUSR", libc::S_IRUSR)?;
+    m.add("S_IWUSR", libc::S_IWUSR)?;
+    m.add("S_IXUSR", libc::S_IXUSR)?;
+    m.add("S_IRGRP", libc::S_IRGRP)?;
+    m.add("S_IWGRP", libc::S_IWGRP)?;
+    m.add("S_IXGRP", libc::S_IXGRP)?;
+    m.add("S_IROTH", libc::S_IROTH)?;
+    m.add("S_IWOTH", libc::S_IWOTH)?;
+    m.add("S_IXOTH", libc::S_IXOTH)?;
+
+    // File type bits (from st_mode / stx_mode)
+    m.add("S_IFREG", libc::S_IFREG)?;
+    m.add("S_IFDIR", libc::S_IFDIR)?;
+    m.add("S_IFLNK", libc::S_IFLNK)?;
+    m.add("S_IFSOCK", libc::S_IFSOCK)?;
+    m.add("S_IFIFO", libc::S_IFIFO)?;
+    m.add("S_IFMT", libc::S_IFMT)?;
+
+    // AT flags (path resolution)
+    m.add("AT_FDCWD", libc::AT_FDCWD)?;
+    m.add("AT_EMPTY_PATH", libc::AT_EMPTY_PATH)?;
+    m.add("AT_SYMLINK_NOFOLLOW", libc::AT_SYMLINK_NOFOLLOW)?;
+
+    // Statx mask (which fields to populate)
+    m.add("STATX_TYPE", libc::STATX_TYPE)?;
+    m.add("STATX_MODE", libc::STATX_MODE)?;
+    m.add("STATX_INO", libc::STATX_INO)?;
+    m.add("STATX_SIZE", libc::STATX_SIZE)?;
+    m.add("STATX_MTIME", libc::STATX_MTIME)?;
+    m.add("STATX_ATIME", libc::STATX_ATIME)?;
+    m.add("STATX_CTIME", libc::STATX_CTIME)?;
+    m.add("STATX_ALL", libc::STATX_ALL)?;
+
+    // Socket: address families
+    m.add("AF_INET", libc::AF_INET)?;
+    m.add("AF_INET6", libc::AF_INET6)?;
+    m.add("AF_UNIX", libc::AF_UNIX)?;
+
+    // Socket: types
+    m.add("SOCK_STREAM", libc::SOCK_STREAM)?;
+    m.add("SOCK_DGRAM", libc::SOCK_DGRAM)?;
+    m.add("SOCK_NONBLOCK", libc::SOCK_NONBLOCK)?;
+    m.add("SOCK_CLOEXEC", libc::SOCK_CLOEXEC)?;
+
+    // Socket: protocol levels and options
+    m.add("SOL_SOCKET", libc::SOL_SOCKET)?;
+    m.add("SO_REUSEADDR", libc::SO_REUSEADDR)?;
+    m.add("SO_REUSEPORT", libc::SO_REUSEPORT)?;
+    m.add("SO_KEEPALIVE", libc::SO_KEEPALIVE)?;
+    m.add("IPPROTO_TCP", libc::IPPROTO_TCP)?;
+    m.add("TCP_NODELAY", libc::TCP_NODELAY)?;
+
+    // Socket: send/recv flags
+    m.add("MSG_NOSIGNAL", libc::MSG_NOSIGNAL)?;
+    m.add("MSG_DONTWAIT", libc::MSG_DONTWAIT)?;
+
+    // Signals
+    m.add("SIGINT", libc::SIGINT)?;
+    m.add("SIGTERM", libc::SIGTERM)?;
+    m.add("SIGHUP", libc::SIGHUP)?;
+
+    // Signalfd flags
+    m.add("SFD_NONBLOCK", libc::SFD_NONBLOCK)?;
+    m.add("SFD_CLOEXEC", libc::SFD_CLOEXEC)?;
+
+    Ok(())
+}
+
 #[pymodule]
 fn _rusty_ring(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Ring>()?;
     m.add_class::<CompletionEvent>()?;
     m.add_class::<SockAddr>()?;
+    m.add_class::<StatxBuffer>()?;
+
+    register_constants(m)?;
     Ok(())
 }

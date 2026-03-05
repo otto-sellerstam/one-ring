@@ -40,6 +40,16 @@ class FileOpenResult(IOResult):
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
+class StatxResult(IOResult):
+    """Result of a file open operation."""
+
+    size: int
+    mtime_sec: int
+    ino: int
+    mode: int
+
+
+@dataclass(slots=True, kw_only=True, frozen=True)
 class ReadResult(IOResult):
     """Result of a file read operation."""
 

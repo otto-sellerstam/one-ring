@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from one_ring_core.operations import Close, FileOpen, Read, Write
+from one_ring_core.operations import Close, FileOpen, Read, Statx, Write
 from one_ring_loop._utils import _execute
 
 if TYPE_CHECKING:
@@ -15,9 +15,15 @@ class File:
 
     fd: int
 
-    def read(self) -> Coro[str]:
+    def read(self, size: int | None = None) -> Coro[str]:
         """Read file low-level coroutine."""
-        result = yield from _execute(Read(fd=self.fd))
+        _size = size
+        if _size is None:
+            # Async fetching of size from metadata using statx.
+            metadata = yield from _execute(Statx.from_fd(fd=self.fd))
+            _size = metadata.size
+
+        result = yield from _execute(Read(fd=self.fd, size=_size))
         return result.content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:

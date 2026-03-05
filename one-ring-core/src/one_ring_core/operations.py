@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import array
 import errno
-import os
 import socket
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, Self, override
 
+from one_ring_core.constants import AtFlags, FileMode, OpenFlags, StatxMask
 from one_ring_core.log import get_logger
 from one_ring_core.results import (
     CancelResult,
@@ -25,10 +25,11 @@ from one_ring_core.results import (
     SocketRecvResult,
     SocketSendResult,
     SocketSetOptResult,
+    StatxResult,
     WriteResult,
 )
 from one_ring_core.socket import AddressFamily
-from rusty_ring import SockAddr
+from rusty_ring import SockAddr, StatxBuffer
 
 if TYPE_CHECKING:
     from one_ring_core.results import IOResult
@@ -102,7 +103,11 @@ class FileOpen(IOOperation[FileOpenResult]):
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
         """Prepares a submission queue entry for the SQ."""
         ring.prep_openat(
-            user_data, self.path, self._mode_to_flags(self.mode), 0o660, -100
+            user_data,
+            self.path,
+            self._mode_to_flags(self.mode),
+            FileMode.RW_OWNER,
+            AtFlags.FDCWD,
         )
 
     @override
@@ -116,18 +121,71 @@ class FileOpen(IOOperation[FileOpenResult]):
     def _mode_to_flags(mode: str) -> int:
         """Docstring."""
         if "r" in mode and "w" in mode:
-            flags = 2  # read write
+            flags = OpenFlags.RDWR  # read write
         elif "w" in mode:
-            flags = 1  # write only
+            flags = OpenFlags.WRONLY  # write only
         else:
-            flags = 0  # read only
+            flags = OpenFlags.RDONLY  # read only
 
         if "c" in mode:
-            flags |= 64  # create if not exists
+            flags |= OpenFlags.CREAT  # create if not exists
         if "a" in mode:
-            flags |= 1024  # append
+            flags |= OpenFlags.APPEND  # append
 
         return flags
+
+
+@dataclass(slots=True, kw_only=True)
+class Statx(IOOperation[StatxResult]):
+    """Operation to fetch file metadata via statx.
+
+    This operation should be instantiated via the provided classmethods.
+    """
+
+    result_type = StatxResult
+
+    _path: str
+
+    _dir_fd: int
+
+    _flags: int
+
+    _buffer: StatxBuffer = field(default_factory=StatxBuffer, init=False, repr=False)
+
+    # Expose only requested data in the future, if necessary (neglible optimization).
+    _RESULT_MASK = StatxMask.SIZE | StatxMask.MTIME | StatxMask.INO | StatxMask.MODE
+
+    @classmethod
+    def from_path(cls, path: str) -> Self:
+        """Creates a statx operation using a path string."""
+        return cls(_path=path, _flags=0, _dir_fd=AtFlags.FDCWD)
+
+    @classmethod
+    def from_fd(cls, fd: int) -> Self:
+        """Creates a statx operation using a file descriptor."""
+        return cls(_path="", _flags=AtFlags.EMPTY_PATH, _dir_fd=fd)
+
+    @override
+    def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
+        """Prepares a submission queue entry for the SQ."""
+        ring.prep_statx(
+            user_data,
+            self._path,
+            self._buffer,
+            self._flags,
+            self._RESULT_MASK,
+            self._dir_fd,
+        )
+
+    @override
+    def extract(self, completion_event: CompletionEvent) -> StatxResult:
+        """Extract fields from a completion queue event and wrap in correct type."""
+        return StatxResult(
+            size=self._buffer.size,
+            mtime_sec=self._buffer.mtime_sec,
+            ino=self._buffer.ino,
+            mode=self._buffer.mode,
+        )
 
 
 @dataclass(slots=True, kw_only=True)
@@ -137,8 +195,8 @@ class Read(IOOperation[ReadResult]):
     result_type = ReadResult
     fd: int
 
-    """None will read the whole file"""
-    size: int | None = None
+    """Number of bytes to read"""
+    size: int
 
     """Offset for file read"""
     offset: int = 0
@@ -148,13 +206,10 @@ class Read(IOOperation[ReadResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Prepares a submission queue entry for the SQ."""
-        _size = self.size
-        if _size is None:
-            _size = os.fstat(self.fd).st_size  # TODO: Blocking syscall. Use statx.
-        self._buffer = bytearray(_size)
+        """Prepares a submission queue efntry for the SQ."""
+        self._buffer = bytearray(self.size)
 
-        ring.prep_read(user_data, self.fd, self._buffer, _size, self.offset)
+        ring.prep_read(user_data, self.fd, self._buffer, self.size, self.offset)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> ReadResult:
