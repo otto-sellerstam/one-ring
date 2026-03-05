@@ -35,7 +35,6 @@ plugins:
           paths:
             - one-ring-core/src
             - one-ring-loop/src
-            - one-ring-asyncio/src
             - one-ring-http/src
           options:
             show_source: true
@@ -52,8 +51,6 @@ nav:
       - Overview: one-ring-core/overview.md
   - "one-ring-loop":
       - Overview: one-ring-loop/overview.md
-  - "one-ring-asyncio":
-      - Overview: one-ring-asyncio/overview.md
   - "one-ring-http":
       - Overview: one-ring-http/overview.md
   - API Reference: api/
