@@ -6,6 +6,7 @@ from one_ring_core.operations import Close, FileOpen, Read, Statx, Write
 from one_ring_loop._utils import _execute
 
 if TYPE_CHECKING:
+    from one_ring_core.results import StatxResult
     from one_ring_loop.typedefs import Coro
 
 
@@ -52,3 +53,11 @@ def open_file(path: str | Path, mode: str = "r") -> Coro[File]:
 
     result = yield from _execute(FileOpen(path=_path, mode=mode))
     return File(fd=result.fd)
+
+
+def statx(path: str | Path) -> Coro[StatxResult]:
+    """Gets file metadata via statx."""
+    _path = str(path) if isinstance(path, Path) else path
+
+    result = yield from _execute(Statx.from_path(_path))
+    return result
