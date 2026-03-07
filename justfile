@@ -71,7 +71,7 @@ docs:
 
 # Serve documentation with live reload
 docs-serve:
-    uv run --group docs mkdocs serve -a localhost:8001
+    uv run --group docs mkdocs serve -a localhost:7999
 
 ### Maintenance ########################################################
 

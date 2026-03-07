@@ -1,4 +1,4 @@
-"""Docstring."""
+"""Contains typed operations for registration with the IO worker."""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ class Cancel(IOOperation[CancelResult]):
 
 @dataclass(slots=True, kw_only=True)
 class FileOpen(IOOperation[FileOpenResult]):
-    """Docstring."""
+    """File specific open operation."""
 
     result_type = FileOpenResult
     path: str
@@ -119,7 +119,7 @@ class FileOpen(IOOperation[FileOpenResult]):
 
     @staticmethod
     def _mode_to_flags(mode: str) -> int:
-        """Docstring."""
+        """Converts Python style mode to POSIX flags."""
         if "r" in mode and "w" in mode:
             flags = OpenFlags.RDWR  # read write
         elif "w" in mode:
@@ -306,12 +306,12 @@ class SocketCreate(IOOperation[SocketCreateResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Docstring."""
+        """Prepares socket operation on ring."""
         ring.prep_socket(user_data, self.domain, self.sock_type, self.protocol)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketCreateResult:
-        """Docstring."""
+        """Extract results using resulting fd from completion event."""
         return SocketCreateResult(fd=completion_event.res)
 
 
@@ -320,6 +320,7 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
     """Configures options for a socket."""
 
     result_type = SocketSetOptResult
+
     """The file descriptor of the socket"""
     fd: int
 
@@ -338,7 +339,7 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSetOptResult:
-        """Docstring."""
+        """Produce a typed sentinel completion event."""
         return SocketSetOptResult()
 
 
@@ -374,7 +375,7 @@ class SocketBind(IOOperation[SocketBindResult]):
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketBindResult:
-        """Docstring."""
+        """Produce a typed sentinel completion event.."""
         return SocketBindResult()
 
 
@@ -395,7 +396,6 @@ class SocketListen(IOOperation[SocketListenResult]):
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketListenResult:
-        """Docstring."""
         return SocketListenResult()
 
 
@@ -409,12 +409,10 @@ class SocketAccept(IOOperation[SocketAcceptResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Docstring."""
         ring.prep_socket_accept(user_data, self.fd)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketAcceptResult:
-        """Docstring."""
         return SocketAcceptResult(fd=completion_event.res)
 
 
@@ -438,12 +436,10 @@ class SocketRecv(IOOperation[SocketRecvResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Docstring."""
         ring.prep_socket_recv(user_data, self.fd, self._buffer)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketRecvResult:
-        """Docstring."""
         return SocketRecvResult(
             content=bytes(self._buffer[: completion_event.res]),
             size=completion_event.res,
@@ -463,12 +459,10 @@ class SocketSend(IOOperation[SocketSendResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Docstring."""
         ring.prep_socket_send(user_data, self.fd, self.data)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketSendResult:
-        """Docstring."""
         return SocketSendResult(size=completion_event.res)
 
 
@@ -500,10 +494,8 @@ class SocketConnect(IOOperation[SocketConnectResult]):
 
     @override
     def prep(self, user_data: WorkerOperationID, ring: Ring) -> None:
-        """Docstring."""
         ring.prep_socket_connect(user_data, self.fd, self._sockaddr)
 
     @override
     def extract(self, completion_event: CompletionEvent) -> SocketConnectResult:
-        """Docstring."""
         return SocketConnectResult()

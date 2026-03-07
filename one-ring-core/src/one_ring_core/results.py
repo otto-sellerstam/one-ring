@@ -9,9 +9,12 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class IOCompletion[T: IOResult]:
-    """Docstring."""
+    """Wrapper around IO completion result."""
 
+    """user_data identifier of completed operation"""
     user_data: WorkerOperationID
+
+    """Result of operation. OSError if failed"""
     result: T | OSError
 
     def unwrap(self) -> T:
@@ -36,6 +39,7 @@ class CancelResult(IOResult):
 class FileOpenResult(IOResult):
     """Result of a file open operation."""
 
+    """File descriptor of opened file"""
     fd: int
 
 
@@ -43,17 +47,27 @@ class FileOpenResult(IOResult):
 class StatxResult(IOResult):
     """Result of a statx file metadata operation."""
 
+    """Size of file contents as bytes"""
     size: int
+
+    """Last modification time in whole seconds"""
     mtime_sec: int
+
+    """Inode number of the file"""
     ino: int
+
+    """Encodes file type and permissions"""
     mode: int
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class ReadResult(IOResult):
-    """Result of a file read operation."""
+    """Result of a read operation."""
 
+    """Data read"""
     content: bytes
+
+    """Number of bytes in data read"""
     size: int
 
 
@@ -61,6 +75,7 @@ class ReadResult(IOResult):
 class WriteResult(IOResult):
     """Result of a file write operation."""
 
+    """Number of bytes written"""
     size: int
 
 
@@ -76,29 +91,30 @@ class SleepResult(IOResult):
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketCreateResult(IOResult):
-    """Docstring."""
+    """Result for socket creation operation."""
 
+    """File descriptor of created socket"""
     fd: int
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketSetOptResult(IOResult):
-    """Docstring."""
+    """Result for setting socket options operation."""
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketBindResult(IOResult):
-    """Docstring."""
+    """Result for binding socket operation."""
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketListenResult(IOResult):
-    """Docstring."""
+    """Result for setting socket as passive."""
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketAcceptResult(IOResult):
-    """Docstring."""
+    """Result for accepting connection on socket."""
 
     """File descriptor for new client connection."""
     fd: int
@@ -106,19 +122,23 @@ class SocketAcceptResult(IOResult):
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketRecvResult(IOResult):
-    """Docstring."""
+    """Result for reading from socket."""
 
+    """Data received in bytes"""
     content: bytes
+
+    """Size of data received"""
     size: int
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketSendResult(IOResult):
-    """Docstring."""
+    """Result for sending data via socket."""
 
+    """Size of data sent"""
     size: int
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class SocketConnectResult(IOResult):
-    """Docstring."""
+    """Sentinal result for connecting to socket operation."""

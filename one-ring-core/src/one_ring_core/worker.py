@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, kw_only=True)
 class IOWorker:
-    """Docstring."""
+    """Thin wrapper around rusty_ring.Ring for type based operation registration."""
 
     _active_submissions: dict[WorkerOperationID, IOOperation] = field(
         default_factory=dict, init=False
@@ -87,7 +87,7 @@ class IOWorker:
         return completion_event
 
     def __enter__(self) -> Self:
-        """Docstring."""
+        """Thin wrapper around rusty_ring.Ring's context manager."""
         self._stack = ExitStack()
         self._stack.__enter__()
         self._ring = self._stack.enter_context(Ring(depth=32))
@@ -99,7 +99,7 @@ class IOWorker:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        """Docstring."""
+        """Thin wrapper around rusty_ring.Ring's context manager."""
         self._stack.__exit__(exc_type, exc_val, exc_tb)
 
     def _transform_completion_event(
