@@ -10,12 +10,14 @@ from one_ring_http.middleware import (
     exception_middleware,
     logging_middleware,
 )
-from one_ring_http.response import Response
+from one_ring_http.response import Response, StreamingResponse
 from one_ring_http.router import Router
 from one_ring_http.server import HTTPServer
+from one_ring_http.sse import ServerSentEvent
 from one_ring_http.static import static_handler
 from one_ring_http.status import HTTPStatus
 from one_ring_loop import run
+from one_ring_loop.streams.memory import create_memory_object_stream
 from one_ring_loop.timerio import sleep
 
 if TYPE_CHECKING:
@@ -54,6 +56,32 @@ def sync_sleep(_: Request) -> Coro[Response]:
 def echo(request: Request) -> Response:
     """Echoes back body."""
     return Response(status_code=HTTPStatus.OK, body=request.body)
+
+
+@router.get("/streaming")
+def streaming(_: Request) -> StreamingResponse:
+    """Streams a simple response to the client."""
+    send_stream, receive_stream = create_memory_object_stream[bytes]()
+
+    def producer() -> Coro[None]:
+        for word in ["hej!", "jag", "heter", "otto", "sellerstam", ":)"]:
+            event = ServerSentEvent(data=word, event=None)
+            print("Producer: sending", word)
+            yield from send_stream.send(event.encode())
+            print("Producer: sleeping")
+            yield from sleep(1)
+
+        yield from send_stream.close()
+
+    return StreamingResponse(
+        status_code=HTTPStatus.OK,
+        body_stream=receive_stream,
+        producer=producer(),
+        headers={
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+        },
+    )
 
 
 middleware = MiddlewareStack()

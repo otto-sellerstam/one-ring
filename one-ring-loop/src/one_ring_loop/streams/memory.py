@@ -43,7 +43,7 @@ class MemoryObjectStreamBase[T]:
     stream_refcount: StreamRefcount
 
     """If the stream instance has been closed."""
-    _closed: bool = field(default=False, init=False)
+    closed: bool = field(default=False, init=False)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -55,7 +55,7 @@ class MemoryObjectSendStream[T](MemoryObjectStreamBase[T]):
 
         Notifies all receives when all send streams have closed.
         """
-        self._closed = True
+        self.closed = True
         self.stream_refcount["send_streams"] -= 1
         if self.stream_refcount["send_streams"] <= 0:
             yield from self.receive_condition.acquire()
@@ -77,7 +77,7 @@ class MemoryObjectSendStream[T](MemoryObjectStreamBase[T]):
 
     def send(self, item: T) -> Coro[None]:
         """Sends an item to the stream."""
-        if self._closed:
+        if self.closed:
             raise ClosedResourceError("Send stream already closed")
         elif self.stream_refcount["receive_streams"] <= 0:
             raise BrokenResourceError("All receive streams are closed")
@@ -112,7 +112,7 @@ class MemoryObjectReceiveStream[T](MemoryObjectStreamBase[T]):
 
     def close(self) -> Coro[None]:
         """Closes the resource."""
-        self._closed = True
+        self.closed = True
         self.stream_refcount["receive_streams"] -= 1
         if self.stream_refcount["receive_streams"] <= 0:
             yield from self.send_condition.acquire()
@@ -134,7 +134,7 @@ class MemoryObjectReceiveStream[T](MemoryObjectStreamBase[T]):
 
     def receive(self) -> Coro[T]:
         """Receives an item from the stream."""
-        if self._closed:
+        if self.closed:
             raise ClosedResourceError("Receive stream already closed")
 
         yield from self.receive_condition.acquire()

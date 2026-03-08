@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, TypeIs
 from one_ring_http.log import get_logger
 from one_ring_http.middleware import MiddlewareStack
 from one_ring_http.request import Request
-from one_ring_http.response import Response
+from one_ring_http.response import Response, StreamingResponse
 from one_ring_http.status import HTTPStatus
 from one_ring_loop import TaskGroup
 from one_ring_loop.cancellation import fail_after, move_on_after
@@ -61,6 +61,7 @@ class HTTPServer:
         finally:
             yield from tg.exit()
 
+    # TODO: Refactor.
     def _handle_connection(self, conn: Connection) -> Coro[None]:
         """Handles an incoming connection."""
         try:
@@ -87,7 +88,9 @@ class HTTPServer:
 
                     if request is None:
                         # Only happens if request parsing failed.
-                        # Sends 400 status code response.
+                        response = Response(
+                            status_code=HTTPStatus.BAD_REQUEST, body=b"Bad Request"
+                        )
                         yield from buffered_stream.send(response.serialize())
                         break
 
@@ -97,8 +100,7 @@ class HTTPServer:
                     else:
                         response.headers["connection"] = "keep-alive"
 
-                    exclude_body = request.method == "HEAD"
-                    yield from buffered_stream.send(response.serialize(exclude_body))
+                    yield from self._handle_response(buffered_stream, request, response)
             finally:
                 with move_on_after(3, shield=True):
                     yield from buffered_stream.close()
@@ -107,7 +109,7 @@ class HTTPServer:
 
     def _handle_request(
         self, stream: BufferedByteStream
-    ) -> Coro[tuple[Request | None, Response | None]]:
+    ) -> Coro[tuple[Request | None, Response | StreamingResponse | None]]:
         try:
             with fail_after(5):
                 request = yield from Request.parse(stream)
@@ -125,6 +127,30 @@ class HTTPServer:
         response = yield from handler(request)
 
         return request, response
+
+    def _handle_response(
+        self,
+        stream: BufferedByteStream,
+        request: Request,
+        response: Response | StreamingResponse,
+    ) -> Coro[None]:
+        if isinstance(response, StreamingResponse):
+            tg = TaskGroup()
+            tg.enter()
+            try:
+                tg.create_task(response.producer)
+                while True:
+                    try:
+                        chunk = yield from response.serialize()
+                    except EndOfStreamError:
+                        break
+                    yield from stream.send(chunk)
+            finally:
+                yield from tg.exit()
+
+        else:
+            exclude_body = request.method == "HEAD"
+            yield from stream.send(response.serialize(exclude_body))
 
     def _get_handler(self, method: HTTPMethod, path: str) -> AsyncHTTPHandler:
         """Gets handler from router and applies all middleware.

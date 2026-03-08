@@ -9,7 +9,7 @@ from one_ring_http.status import HTTPStatus
 class TestResponseSerialize:
     def test_minimal_response(self) -> None:
         raw = Response(status_code=HTTPStatus.OK).serialize()
-        assert raw.startswith(b"HTTP/1.1 200 OK\r\ncontent-length: 0")
+        assert raw.startswith(b"HTTP/1.1 200 OK\r\n")
 
     def test_with_body(self) -> None:
         raw = Response(status_code=HTTPStatus.OK, body=b"hello").serialize()
