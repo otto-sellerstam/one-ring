@@ -1,3 +1,6 @@
+import base64
+import hashlib
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -8,7 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from one_ring_http.request import Request
-    from one_ring_http.typedef import HTTPHandler, HTTPMethod
+    from one_ring_http.typedef import HTTPHandler, HTTPMethod, WebSocketHandler
 
 
 def page_not_found(_: Request) -> Response:
@@ -20,10 +23,17 @@ def page_not_found(_: Request) -> Response:
 class Router:
     """Routes HTTP request to handlers."""
 
+    """Keeps tracks of registered HTTP handlers."""
     _registry: dict[tuple[HTTPMethod, str], HTTPHandler] = field(
         default_factory=dict, init=False
     )
 
+    """Keeps tracks of registered HTTP 'handlers'"""
+    _websocket_registry: dict[str, WebSocketHandler] = field(
+        default_factory=dict, init=False
+    )
+
+    """Fallback for not found paths."""
     _fallback: HTTPHandler = field(default=page_not_found, init=False)
 
     def add(self, method: HTTPMethod, path: str, handler: HTTPHandler) -> None:
@@ -48,12 +58,12 @@ class Router:
     ) -> Callable[[HTTPHandler], HTTPHandler]:
         """Decorator to register HTTP endpoints."""
 
-        def wrapper(func: HTTPHandler) -> HTTPHandler:
+        def decorator(func: HTTPHandler) -> HTTPHandler:
             self.add(method, path, func)
 
             return func
 
-        return wrapper
+        return decorator
 
     # Creating these dynamically messes with my type checker.
     def get(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
@@ -75,3 +85,41 @@ class Router:
     def delete(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for DELETE method registration."""
         return self.register("DELETE", path)
+
+    def resolve_websocket(self, path: str) -> WebSocketHandler:
+        """Fetches a websocket handler from a path."""
+        return self._websocket_registry[path]
+
+    def websocket(self, path: str) -> Callable[[WebSocketHandler], WebSocketHandler]:
+        """For initializing a websocket connection."""
+
+        def decorator(ws_handler: WebSocketHandler) -> WebSocketHandler:
+            def ws_upgrade_http_handler(request: Request) -> Response:
+                magic_string = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+                with suppress(KeyError):
+                    if (
+                        request.headers["connection"].lower() == "upgrade"
+                        and request.headers["upgrade"].lower() == "websocket"
+                        and request.headers["sec-websocket-version"] == "13"
+                    ):
+                        key = request.headers["sec-websocket-key"]
+                        accept = base64.b64encode(
+                            hashlib.sha1(key.encode() + magic_string).digest()  # noqa: S324
+                        ).decode()
+                        return Response(
+                            status_code=HTTPStatus.SWITCHING_PROTOCOLS,
+                            headers={
+                                "connection": "upgrade",
+                                "upgrade": "websocket",
+                                "sec-websocket-accept": accept,
+                            },
+                        )
+
+                return Response(status_code=HTTPStatus.BAD_REQUEST)
+
+            self.register("GET", path)(ws_upgrade_http_handler)
+
+            self._websocket_registry[path] = ws_handler
+            return ws_handler
+
+        return decorator

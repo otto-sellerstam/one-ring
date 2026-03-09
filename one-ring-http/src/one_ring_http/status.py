@@ -4,6 +4,8 @@ from enum import IntEnum
 class HTTPStatus(IntEnum):
     """HTTP status codes with reason phrases."""
 
+    SWITCHING_PROTOCOLS = 101
+
     OK = 200
     CREATED = 201
     ACCEPTED = 202
@@ -38,6 +40,7 @@ class HTTPStatus(IntEnum):
 
 
 _PHRASES: dict[HTTPStatus, str] = {
+    HTTPStatus.SWITCHING_PROTOCOLS: "Switching Protocols",
     HTTPStatus.OK: "OK",
     HTTPStatus.CREATED: "Created",
     HTTPStatus.ACCEPTED: "Accepted",

@@ -22,6 +22,7 @@ from one_ring_loop.timerio import sleep
 
 if TYPE_CHECKING:
     from one_ring_http.request import Request
+    from one_ring_http.websocket import WebSocket
     from one_ring_loop.typedefs import Coro
 
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -82,6 +83,16 @@ def streaming(_: Request) -> StreamingResponse:
             "cache-control": "no-cache",
         },
     )
+
+
+@router.websocket("/ws")
+def ws(websocket: WebSocket) -> Coro[None]:
+    """Create a websocket! FastAPI style."""
+    while True:
+        opcode, payload = yield from websocket.receive()
+        print("Received:", opcode, payload)
+        yield from websocket.send(opcode, payload)
+        print("Echoed!")
 
 
 middleware = MiddlewareStack()

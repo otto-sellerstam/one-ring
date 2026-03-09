@@ -7,6 +7,7 @@ from one_ring_http.middleware import MiddlewareStack
 from one_ring_http.request import Request
 from one_ring_http.response import Response, StreamingResponse
 from one_ring_http.status import HTTPStatus
+from one_ring_http.websocket import WebSocket
 from one_ring_loop import TaskGroup
 from one_ring_loop.cancellation import fail_after, move_on_after
 from one_ring_loop.exceptions import Cancelled
@@ -97,10 +98,16 @@ class HTTPServer:
                     if request.headers.get("connection") == "close":
                         response.headers["connection"] = "close"
                         keep_alive = False
-                    else:
+                    elif response.headers.get("connection") != "upgrade":
                         response.headers["connection"] = "keep-alive"
 
                     yield from self._handle_response(buffered_stream, request, response)
+
+                    if response.status_code == HTTPStatus.SWITCHING_PROTOCOLS:
+                        ws_handler = self.router.resolve_websocket(request.path)
+                        websocket = WebSocket(stream=buffered_stream)
+                        yield from ws_handler(websocket)
+                        break
             finally:
                 with move_on_after(3, shield=True):
                     yield from buffered_stream.close()

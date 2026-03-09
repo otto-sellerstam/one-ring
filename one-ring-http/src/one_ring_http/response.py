@@ -50,7 +50,8 @@ class Response(ResponseBase):
 
     def __post_init__(self) -> None:
         """Set default headers for basic response."""
-        self.headers["content-length"] = str(len(self.body))
+        if self.status_code != HTTPStatus.SWITCHING_PROTOCOLS:
+            self.headers["content-length"] = str(len(self.body))
         if self.body and "content-type" not in self.headers:
             self.headers["content-type"] = "text/plain; charset=utf-8"
 
