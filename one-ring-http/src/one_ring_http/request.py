@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self, TypeGuard
+from urllib import parse
 
 from one_ring_loop.log import get_logger
 
 if TYPE_CHECKING:
-    from one_ring_http.typedef import HTTPHeaders, HTTPMethod
+    from one_ring_http.typedef import HTTPHeaders, HTTPMethod, HTTPQueryParams
     from one_ring_loop.streams.buffered import BufferedByteReceiveStream
     from one_ring_loop.typedefs import Coro
 
@@ -42,10 +43,13 @@ class Request:
     """HTTP body"""
     body: bytes
 
+    """Query parameters"""
+    query_params: HTTPQueryParams
+
     @classmethod
     def parse(cls, buffered_stream: BufferedByteReceiveStream) -> Coro[Self]:
         """Parses data from a buffered receive stream and provides a Request object."""
-        # 1. Get tokens from first line
+        # Get tokens from first line
         first_line = yield from buffered_stream.receive_until(
             delimiter=b"\r\n", max_bytes=65536
         )
@@ -57,7 +61,7 @@ class Request:
         if not cls.verify_http_method(method):
             raise RuntimeError("Unsupported HTTP method")
 
-        # 2. Get headers, until reaching empty line
+        # Get headers, until reaching empty line
         headers: HTTPHeaders = {}
         line = yield from buffered_stream.receive_until(
             delimiter=b"\r\n", max_bytes=65536
@@ -75,18 +79,22 @@ class Request:
                 delimiter=b"\r\n", max_bytes=65536
             )
 
-        # 3. Get body, if we have "content-length"
+        # Get body, if we have "content-length"
         body = b""
         if "content-length" in headers:
             content_length = int(headers["content-length"])
             body = yield from buffered_stream.receive_exactly(content_length)
 
+        # Get query params from target path.
+        parsed = parse.urlparse(target)
+
         return cls(
             method=method,
-            path=target,
+            path=parsed.path,
             http_version=version,
             headers=headers,
             body=body,
+            query_params=parse.parse_qs(parsed.query),
         )
 
     @staticmethod
