@@ -10,6 +10,9 @@ I don't want to add these as issues, as they're more of my own personal notes re
 
 Once more functionality has been added, structure the project for a clear separation of concerns and functionality from an API point of view.
 
+## Typed dynamic path and query params into path function signatures (maybe)
+
+Implement FastAPI style support for typed dynamic path variables and query params.
 
 ## Solve inline TODOs
 
