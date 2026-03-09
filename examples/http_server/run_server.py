@@ -16,6 +16,7 @@ from one_ring_http.server import HTTPServer
 from one_ring_http.sse import ServerSentEvent
 from one_ring_http.static import static_handler
 from one_ring_http.status import HTTPStatus
+from one_ring_http.websocket import WSConnectionClosedError
 from one_ring_loop import run
 from one_ring_loop.streams.memory import create_memory_object_stream
 from one_ring_loop.timerio import sleep
@@ -85,14 +86,43 @@ def streaming(_: Request) -> StreamingResponse:
     )
 
 
+class ConnectionManager:
+    """Simple example of a manager for multiple connections."""
+
+    def __init__(self) -> None:
+        self.active_connections: list[WebSocket] = []
+
+    def connect(self, websocket: WebSocket) -> None:  # noqa: D102
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:  # noqa: D102
+        self.active_connections.remove(websocket)
+
+    def send_personal_message(self, message: str, websocket: WebSocket) -> Coro[None]:  # noqa: D102
+        yield from websocket.send_text(message)
+
+    def broadcast(self, message: str) -> Coro[None]:  # noqa: D102
+        for connection in self.active_connections:
+            yield from connection.send_text(message)
+
+
+manager = ConnectionManager()
+
+
 @router.websocket("/ws")
 def ws(websocket: WebSocket) -> Coro[None]:
     """Create a websocket! FastAPI style."""
-    while True:
-        opcode, payload = yield from websocket.receive()
-        print("Received:", opcode, payload)
-        yield from websocket.send(opcode, payload)
-        print("Echoed!")
+    manager.connect(websocket)
+    try:
+        while True:
+            _, payload = yield from websocket.receive()
+            yield from manager.send_personal_message(
+                f"You wrote: {payload.decode()}", websocket
+            )
+            yield from manager.broadcast(f"Client says: {payload.decode()}")
+    except WSConnectionClosedError:
+        manager.disconnect(websocket)
+        yield from manager.broadcast("A client disconnected. Who? Dunno")
 
 
 middleware = MiddlewareStack()
