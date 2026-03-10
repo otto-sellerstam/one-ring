@@ -1,11 +1,16 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self, TypeGuard
 from urllib import parse
 
 from one_ring_loop.log import get_logger
 
 if TYPE_CHECKING:
-    from one_ring_http.typedef import HTTPHeaders, HTTPMethod, HTTPQueryParams
+    from one_ring_http.typedef import (
+        HTTPHeaders,
+        HTTPMethod,
+        HTTPQueryParams,
+        URLPathParams,
+    )
     from one_ring_loop.streams.buffered import BufferedByteReceiveStream
     from one_ring_loop.typedefs import Coro
 
@@ -24,7 +29,7 @@ ALLOWED_HTTP_METHODS: set[HTTPMethod] = {
 }
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class Request:
     """Represents a parsed HTTP/1.1 request."""
 
@@ -45,6 +50,9 @@ class Request:
 
     """Query parameters"""
     query_params: HTTPQueryParams
+
+    """Dynamic url path parameters"""
+    path_params: URLPathParams = field(default_factory=dict, init=False)
 
     @classmethod
     def parse(cls, buffered_stream: BufferedByteReceiveStream) -> Coro[Self]:

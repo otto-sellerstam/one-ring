@@ -29,7 +29,7 @@ def _serve_static(root: str, port: int, server_ctx: ssl.SSLContext) -> Coro[None
     """Start a server with static_handler, swallowing Cancelled on shutdown."""
     router = Router()
     router.add("GET", "/*", static_handler(root))
-    router.set_fallback(static_handler(root))
+    router.set_404_fallback(static_handler(root))
     server = HTTPServer(
         router=router, host="127.0.0.1", port=port, ssl_context=server_ctx
     )

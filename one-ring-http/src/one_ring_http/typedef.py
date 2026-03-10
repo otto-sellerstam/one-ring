@@ -8,6 +8,8 @@ from one_ring_loop.typedefs import Coro
 
 type HTTPHeaders = dict[str, str]
 type HTTPQueryParams = dict[str, list[str]]
+type URLPathParams = dict[str, str]
+type URLPath = str
 
 type HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 

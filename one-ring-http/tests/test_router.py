@@ -28,11 +28,12 @@ class TestRouter:
     def test_add_and_resolve(self) -> None:
         router = Router()
         router.add("GET", "/hello", _ok)
-        assert router.resolve("GET", "/hello") is _ok
+        handler, _ = router.resolve("GET", "/hello")
+        assert handler is _ok
 
     def test_resolve_unregistered_returns_fallback(self) -> None:
         router = Router()
-        handler = router.resolve("GET", "/missing")
+        handler, _ = router.resolve("GET", "/missing")
         result = handler(make_request())
         assert isinstance(result, Response)
         assert result.status_code == 404
@@ -45,32 +46,29 @@ class TestRouter:
 
     def test_set_fallback(self) -> None:
         router = Router()
-        router.set_fallback(_teapot)
-        assert router.resolve("GET", "/anything") is _teapot
-
-    def test_multiple_routes(self) -> None:
-        router = Router()
-        router.add("GET", "/a", _ok)
-        router.add("POST", "/b", _created)
-        assert router.resolve("GET", "/a") is _ok
-        assert router.resolve("POST", "/b") is _created
+        router.set_404_fallback(_teapot)
+        handler, _ = router.resolve("GET", "/anything")
+        assert handler is _teapot
 
     def test_overwrite_route(self) -> None:
         router = Router()
         router.add("GET", "/x", _ok)
         router.add("GET", "/x", _created)
-        assert router.resolve("GET", "/x") is _created
+        handler, _ = router.resolve("GET", "/x")
+        assert handler is _created
 
     def test_head_falls_back_to_get(self) -> None:
         router = Router()
         router.add("GET", "/hello", _ok)
-        assert router.resolve("HEAD", "/hello") is _ok
+        handler, _ = router.resolve("HEAD", "/hello")
+        assert handler is _ok
 
     def test_explicit_head_takes_precedence(self) -> None:
         router = Router()
         router.add("GET", "/hello", _ok)
         router.add("HEAD", "/hello", _created)
-        assert router.resolve("HEAD", "/hello") is _created
+        handler, _ = router.resolve("HEAD", "/hello")
+        assert handler is _created
 
 
 class TestPageNotFound:

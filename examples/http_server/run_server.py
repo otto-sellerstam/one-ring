@@ -31,13 +31,19 @@ ssl_context.load_cert_chain("dev-cert.pem", "dev-key.pem")
 
 router = Router()
 
-router.set_fallback(static_handler("./examples/http_server/static"))
+router.set_404_fallback(static_handler("./examples/http_server/static"))
 
 
 @router.get("/big")
 def big_response(_: Request) -> Response:
     """Sends a large response."""
     return Response.text("A" * 1_000_000)
+
+
+@router.get("/{a}")
+def dynamic_var(request: Request) -> Coro[Response]:
+    """Sends a large response."""
+    return Response.text(str(request.path_params))
 
 
 @router.get("/")

@@ -220,7 +220,7 @@ class TestHTTPServer:
         port = unused_tcp_port
 
         router = Router()
-        router.set_fallback(
+        router.set_404_fallback(
             lambda req: Response(status_code=HTTPStatus.TEAPOT, body=b"teapot")
         )
 

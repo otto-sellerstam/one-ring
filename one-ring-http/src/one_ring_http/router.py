@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import re
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -11,7 +12,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from one_ring_http.request import Request
-    from one_ring_http.typedef import HTTPHandler, HTTPMethod, WebSocketHandler
+    from one_ring_http.typedef import (
+        HTTPHandler,
+        HTTPMethod,
+        URLPath,
+        URLPathParams,
+        WebSocketHandler,
+    )
 
 
 def page_not_found(_: Request) -> Response:
@@ -19,39 +26,55 @@ def page_not_found(_: Request) -> Response:
     return Response(status_code=HTTPStatus.NOT_FOUND)
 
 
+def http_method_not_allowed(_: Request) -> Response:
+    """Default handler for HTTP method not allowed."""
+    return Response(status_code=HTTPStatus.METHOD_NOT_ALLOWED)
+
+
 @dataclass(slots=True, kw_only=True)
 class Router:
     """Routes HTTP request to handlers."""
 
     """Keeps tracks of registered HTTP handlers."""
-    _registry: dict[tuple[HTTPMethod, str], HTTPHandler] = field(
+    _registry: dict[URLPath, dict[HTTPMethod, HTTPHandler]] = field(
         default_factory=dict, init=False
     )
 
     """Keeps tracks of registered HTTP 'handlers'"""
-    _websocket_registry: dict[str, WebSocketHandler] = field(
+    _websocket_registry: dict[URLPath, WebSocketHandler] = field(
         default_factory=dict, init=False
     )
 
     """Fallback for not found paths."""
-    _fallback: HTTPHandler = field(default=page_not_found, init=False)
+    fallback_404: HTTPHandler = field(default=page_not_found, init=False)
 
-    def add(self, method: HTTPMethod, path: str, handler: HTTPHandler) -> None:
+    """Fallback for not allowed methods."""
+    fallback_405: HTTPHandler = field(default=http_method_not_allowed, init=False)
+
+    def add(self, method: HTTPMethod, path: URLPath, handler: HTTPHandler) -> None:
         """Registers a path."""
-        self._registry[(method, path)] = handler
+        if path not in self._registry:
+            self._registry[path] = {}
+        self._registry[path][method] = handler
 
-    def resolve(self, method: HTTPMethod, path: str) -> HTTPHandler:
+    def resolve(
+        self, method: HTTPMethod, path: URLPath
+    ) -> tuple[HTTPHandler, URLPathParams]:
         """Returns the handler for a method and path."""
-        handler = self._registry.get((method, path))
-        if handler is None and method == "HEAD":
-            handler = self._registry.get(("GET", path))
-        if handler is None:
-            return self._fallback
-        return handler
+        for registered_path in self._registry:
+            pattern = self._compile_path(registered_path)
+            if (path_params := pattern.match(path)) is not None:
+                if (method_to_handler := self._registry.get(registered_path)) is None:
+                    break
+                handler = method_to_handler.get(method)
 
-    def set_fallback(self, handler: HTTPHandler) -> None:
-        """Sets fallback."""
-        self._fallback = handler
+                if handler is None and method == "HEAD":
+                    handler = method_to_handler.get("GET")
+                if handler is None:
+                    return self.fallback_405, {}
+                return handler, path_params.groupdict()
+
+        return self.fallback_404, {}
 
     def register(
         self, method: HTTPMethod, path: str
@@ -65,32 +88,42 @@ class Router:
 
         return decorator
 
+    def set_404_fallback(self, handler: HTTPHandler) -> None:
+        """Sets the default 404 fallback."""
+        self.fallback_404 = handler
+
+    def set_405_fallback(self, handler: HTTPHandler) -> None:
+        """Sets the default 405 fallback."""
+        self.fallback_405 = handler
+
     # Creating these dynamically messes with my type checker.
-    def get(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+    def get(self, path: URLPath) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for GET method registration."""
         return self.register("GET", path)
 
-    def post(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+    def post(self, path: URLPath) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for POST method registration."""
         return self.register("POST", path)
 
-    def put(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+    def put(self, path: URLPath) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for PUT method registration."""
         return self.register("PUT", path)
 
-    def patch(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+    def patch(self, path: URLPath) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for PATCH method registration."""
         return self.register("PATCH", path)
 
-    def delete(self, path: str) -> Callable[[HTTPHandler], HTTPHandler]:
+    def delete(self, path: URLPath) -> Callable[[HTTPHandler], HTTPHandler]:
         """Utility wrapper for DELETE method registration."""
         return self.register("DELETE", path)
 
-    def resolve_websocket(self, path: str) -> WebSocketHandler:
+    def resolve_websocket(self, path: URLPath) -> WebSocketHandler:
         """Fetches a websocket handler from a path."""
         return self._websocket_registry[path]
 
-    def websocket(self, path: str) -> Callable[[WebSocketHandler], WebSocketHandler]:
+    def websocket(
+        self, path: URLPath
+    ) -> Callable[[WebSocketHandler], WebSocketHandler]:
         """For initializing a websocket connection."""
 
         def decorator(ws_handler: WebSocketHandler) -> WebSocketHandler:
@@ -123,3 +156,9 @@ class Router:
             return ws_handler
 
         return decorator
+
+    @staticmethod
+    def _compile_path(pattern: URLPath) -> re.Pattern:
+        """Replaces param_name with named capture group."""
+        regex = re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", pattern)
+        return re.compile(f"^{regex}$")

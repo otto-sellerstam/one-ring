@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 def make_request(method: HTTPMethod = "GET", path: str = "/") -> Request:
     """Create a minimal Request for testing."""
     return Request(
-        method=method, path=path, http_version="HTTP/1.1", headers={}, body=b""
+        method=method,
+        path=path,
+        http_version="HTTP/1.1",
+        headers={},
+        body=b"",
+        query_params={},
     )
 
 

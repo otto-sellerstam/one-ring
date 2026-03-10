@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from one_ring_http.typedef import (
         AsyncHTTPHandler,
         HTTPHandler,
-        HTTPMethod,
     )
     from one_ring_loop.typedefs import Coro
 
@@ -130,7 +129,10 @@ class HTTPServer:
                 status_code=HTTPStatus.BAD_REQUEST, body=b"Bad Request"
             )
 
-        handler = self._get_handler(request.method, request.path)
+        handler, path_params = self.router.resolve(request.method, request.path)
+        handler = self._ensure_async_handler(handler)
+        handler = self._apply_middleware(handler)
+        request.path_params = path_params
         response = yield from handler(request)
 
         return request, response
@@ -159,14 +161,11 @@ class HTTPServer:
             exclude_body = request.method == "HEAD"
             yield from stream.send(response.serialize(exclude_body))
 
-    def _get_handler(self, method: HTTPMethod, path: str) -> AsyncHTTPHandler:
+    def _apply_middleware(self, handler: AsyncHTTPHandler) -> AsyncHTTPHandler:
         """Gets handler from router and applies all middleware.
 
         TODO: don't apply middleware on each request...
         """
-        handler = self.router.resolve(method, path)
-        handler = self._ensure_async_handler(handler)
-
         for middleware in self.middleware:
             handler = middleware(handler)
 
