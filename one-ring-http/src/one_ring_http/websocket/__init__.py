@@ -10,15 +10,15 @@ if TYPE_CHECKING:
 
 
 class WSConnectionClosedError(Exception):
-    """Sentinel that WS connection has closed."""
+    """WebSocket connection has closed."""
 
 
 class WSProtocolError(Exception):
-    """Sentinal the WS frame did not follow protocol."""
+    """WebSocket frame did not follow protocol."""
 
 
 class WSOpcode(IntEnum):
-    """Opcodes for WS protocol."""
+    """Opcodes for WebSocket protocol."""
 
     CONTINUATION = 0x0
     TEXT = 0x1
@@ -37,7 +37,7 @@ type WSControlOpcode = Literal[WSOpcode.PING, WSOpcode.PONG, WSOpcode.CLOSE]
 
 
 class WSCloseCode(IntEnum):
-    """Common WS implementation side close codes."""
+    """Common WebSocket implementation side close codes."""
 
     NORMAL = 1000
     GOING_AWAY = 1001
@@ -67,7 +67,7 @@ MAX_LEN_8BYTE = 2**64 - 1
 
 @dataclass(slots=True, kw_only=True)
 class _WSFrame:
-    """Data container for a parsed WS frame."""
+    """Data container for a parsed WebSocket frame."""
 
     """If the frame is final. Used for fragmented frames"""
     final: bool
@@ -220,7 +220,14 @@ class WebSocket:
                     continue
 
                 if _frame.opcode != WSOpcode.CONTINUATION:
-                    raise ValueError("Unexpected opcode during fragmentation handling")
+                    if not self._closing:
+                        yield from self.close(
+                            WSCloseCode.PROTOCOL_ERROR,
+                            reason="Unexpected opcode during fragmented frame handling",
+                        )
+                    raise WSConnectionClosedError(
+                        "Unexpected opcode during fragmented frame handling"
+                    )
 
                 payload_buffer += _frame.payload
                 frame.final = _frame.final  # Handling for potential control frames.
