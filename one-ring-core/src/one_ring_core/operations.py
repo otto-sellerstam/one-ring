@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import array
 import errno
-import socket
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Self, override
 
-from one_ring_core.constants import AtFlags, FileMode, OpenFlags, StatxMask
+from one_ring_core.constants import (
+    AddressFamily,
+    AtFlags,
+    FileMode,
+    OpenFlags,
+    SockOpt,
+    SockOptLevel,
+    SockType,
+    StatxMask,
+)
 from one_ring_core.log import get_logger
 from one_ring_core.results import (
     CancelResult,
@@ -28,7 +36,6 @@ from one_ring_core.results import (
     StatxResult,
     WriteResult,
 )
-from one_ring_core.socket import AddressFamily
 from rusty_ring import SockAddr, StatxBuffer
 
 if TYPE_CHECKING:
@@ -121,16 +128,16 @@ class FileOpen(IOOperation[FileOpenResult]):
     def _mode_to_flags(mode: str) -> int:
         """Converts Python style mode to POSIX flags."""
         if "r" in mode and "w" in mode:
-            flags = OpenFlags.RDWR  # read write
+            flags = OpenFlags.RDWR
         elif "w" in mode:
-            flags = OpenFlags.WRONLY  # write only
+            flags = OpenFlags.WRONLY
         else:
-            flags = OpenFlags.RDONLY  # read only
+            flags = OpenFlags.RDONLY
 
         if "c" in mode:
-            flags |= OpenFlags.CREAT  # create if not exists
+            flags |= OpenFlags.CREAT
         if "a" in mode:
-            flags |= OpenFlags.APPEND  # append
+            flags |= OpenFlags.APPEND
 
         return flags
 
@@ -296,10 +303,10 @@ class SocketCreate(IOOperation[SocketCreateResult]):
 
     result_type = SocketCreateResult
     """address family (AF_INET=IPv4, AF_INET6=IPv6, AF_UNIX=unix socket)"""
-    domain: int = AddressFamily.AF_INET
+    domain: int = AddressFamily.INET
 
     """ransport protocol (SOCK_STREAM=TCP, SOCK_DGRAM=UDP)"""
-    sock_type: int = socket.SOCK_STREAM
+    sock_type: int = SockType.STREAM
 
     """further protocol specifications (0=obvious one chosen by kernel)"""
     protocol: int = 0
@@ -325,10 +332,10 @@ class SocketSetOpt(IOOperation[SocketSetOptResult]):
     fd: int
 
     """Docstring"""
-    level: int = socket.SOL_SOCKET
+    level: int = SockOptLevel.SOCKET
 
     """Docstring"""
-    optname: int = socket.SO_REUSEADDR
+    optname: int = SockOpt.REUSEADDR
 
     """Docstring"""
     val: array.array = field(default_factory=lambda: array.array("i", [1]))
@@ -360,11 +367,11 @@ class SocketBind(IOOperation[SocketBindResult]):
     _sockaddr: SockAddr = field(init=False)
 
     """Address family"""
-    address_family: AddressFamily = AddressFamily.AF_INET
+    address_family: AddressFamily = AddressFamily.INET
 
     def __post_init__(self) -> None:
         """Initializes socket address attribute."""
-        if self.address_family == AddressFamily.AF_INET:
+        if self.address_family == AddressFamily.INET:
             self._sockaddr = SockAddr.v4(ip=self.ip, port=self.port)
         else:
             self._sockaddr = SockAddr.v6(ip=self.ip, port=self.port)
@@ -481,13 +488,13 @@ class SocketConnect(IOOperation[SocketConnectResult]):
     port: int
 
     """The address family"""
-    address_family: AddressFamily = AddressFamily.AF_INET
+    address_family: AddressFamily = AddressFamily.INET
 
     _sockaddr: SockAddr = field(init=False)
 
     def __post_init__(self) -> None:
         """Initializes socket address attribute."""
-        if self.address_family == AddressFamily.AF_INET:
+        if self.address_family == AddressFamily.INET:
             self._sockaddr = SockAddr.v4(ip=self.ip, port=self.port)
         else:
             self._sockaddr = SockAddr.v6(ip=self.ip, port=self.port)

@@ -264,7 +264,10 @@ class WebSocket:
                     return
 
     def _send(self, opcode: WSOpcode, payload: bytes) -> Coro[None]:
-        """Sends data via TCP connection using WS protocol."""
+        """Sends data via TCP connection using WS protocol.
+
+        Does currently not allow for sending fragmented frames.
+        """
         data = bytearray()
 
         byte0 = FIN_BIT_MASK | opcode
