@@ -16,7 +16,7 @@ class File:
 
     fd: int
 
-    def read(self, size: int | None = None) -> Coro[str]:
+    def read(self, size: int | None = None) -> Coro[bytes]:
         """Read file low-level coroutine.
 
         Args:
@@ -29,7 +29,12 @@ class File:
             _size = metadata.size
 
         result = yield from _execute(Read(fd=self.fd, size=_size))
-        return result.content.decode()
+        return result.content
+
+    def read_text(self, size: int | None = None) -> Coro[str]:
+        """Reads file content and decodes to string."""
+        content = yield from self.read(size)
+        return content.decode()
 
     def write(self, data: bytes | str) -> Coro[int]:
         """Write file low-level coroutine.

@@ -514,7 +514,7 @@ docs = [
 
 [[package]]
 name = "one-ring-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "one-ring-core" }
 dependencies = [
     { name = "structlog" },
@@ -525,7 +525,7 @@ requires-dist = [{ name = "structlog", specifier = ">=24.0" }]
 
 [[package]]
 name = "one-ring-http"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "one-ring-http" }
 dependencies = [
     { name = "one-ring-loop" },
@@ -540,7 +540,7 @@ requires-dist = [
 
 [[package]]
 name = "one-ring-loop"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "one-ring-loop" }
 dependencies = [
     { name = "one-ring-core" },
@@ -786,7 +786,7 @@ wheels = [
 
 [[package]]
 name = "rusty-ring"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "rusty-ring" }
 
 [[package]]

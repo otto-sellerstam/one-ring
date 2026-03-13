@@ -19,7 +19,7 @@ class TestFileIO:
             file = yield from open_file(str(tmp_file_path), "rwc")
             try:
                 yield from file.write(content)
-                result = yield from file.read()
+                result = yield from file.read_text()
                 assert result == content, f"Expected {content!r}, got {result!r}"
             finally:
                 yield from file.close()

@@ -58,7 +58,7 @@ def static_handler(root: str | Path) -> HTTPHandler:
         return Response(
             status_code=HTTPStatus.OK,
             headers={"content-type": content_type, "etag": etag},
-            body=body.encode(),
+            body=body,
         )
 
     def handler(request: Request) -> Coro[Response]:

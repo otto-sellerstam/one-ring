@@ -1,6 +1,6 @@
 [project]
 name = "one-ring-loop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Custom async event loop built on io_uring with structured concurrency, file/socket IO, and timers"
 requires-python = ">=3.14"
 license = { text = "MIT" }
