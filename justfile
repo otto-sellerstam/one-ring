@@ -88,6 +88,8 @@ build pkg:
 # Build all publishable packages
 build-all:
     uv build rusty-ring
+    uvx auditwheel repair dist/rusty_ring-*.whl -w dist/
+    rm dist/rusty_ring-*linux_*.whl
     uv build one-ring-core
     uv build one-ring-loop
     uv build one-ring-http

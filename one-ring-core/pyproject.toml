@@ -1,6 +1,6 @@
 [project]
 name = "one-ring-core"
-version = "0.2.0"
+version = "0.2.1"
 description = "Low-level io_uring wrapper for Python: ring management, IO operations, and typed results"
 requires-python = ">=3.14"
 license = { text = "MIT" }
@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "structlog>=24.0",
+    "rusty-ring>=0.2.1",
 ]
 
 [project.urls]

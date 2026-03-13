@@ -33,7 +33,7 @@ class ResponseBase:
         )
 
         headers = f"date: {self.formatdate()}\r\n".encode()
-        headers += b"server: one-ring-http/0.1.0\r\n"
+        headers += b"server: one-ring-http/0.2.1\r\n"
 
         for header_name, header_val in self.headers.items():
             headers += f"{header_name}: {header_val}\r\n".encode()
